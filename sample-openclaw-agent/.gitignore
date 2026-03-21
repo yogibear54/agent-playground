@@ -1,0 +1,25 @@
+/vendor/
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
+# IDE/editor metadata
+.cursor/
+.idea/
+.vscode/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs and runtime temp files
+*.log
+*.tmp
+*.cache
+
+# PHP / Composer / test tooling cache
+.phpunit.result.cache
+.php-cs-fixer.cache
+.phpstan.cache

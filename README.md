@@ -8,8 +8,8 @@ This project is a playground for creating and testing various AI agents for fun 
 
 ## Current Agents
 
-- **simple-agent** - A minimal pi-mono experiment featuring an agent with a tool that sums numeric literals in the latest user message. Uses OpenRouter via the @mariozechner/pi-agent-core and @mariozechner/pi-ai packages.
-- **sample-openclaw-agent** - A PHP CLI daemon that mirrors TypeScript Slack + Anthropic agent behavior. Native PHP implementation based on Hugo Dutka's OpenClaw design with Slack Socket Mode integration and Anthropic API.
+- **simple-pi-mono-agent-ts** - A minimal pi-mono experiment featuring an agent with a tool that sums numeric literals in the latest user message. Uses OpenRouter via the @mariozechner/pi-agent-core and @mariozechner/pi-ai packages.
+- **sample-openclaw-agent-php** - A PHP CLI daemon that mirrors TypeScript Slack + Anthropic agent behavior. Native PHP implementation based on Hugo Dutka's OpenClaw design with Slack Socket Mode integration and Anthropic API.
 
 ## Getting Started
 

@@ -47,24 +47,38 @@ function createSumNumbersTool(agent: Agent): AgentTool<typeof emptyParams> {
 			"Sums every numeric literal in the most recent user message in the conversation. Call this when the user asks for a sum of numbers they wrote.",
 		parameters: emptyParams,
 		execute: async () => {
+			console.log("\n[TOOL] >>> Executing sum_numbers_in_last_user_message...");
+
 			const text = getLastUserMessageText(agent.state.messages);
-			if (text === null) {
+			console.log(`[TOOL] Extracted text from last user message: "${text}"`);
+
+			if (!text) {
+				console.log("[TOOL] No user message found!");
+
 				return {
-					content: [{ type: "text", text: "No user message found in context." }],
+					content: [{ type: "text" as const, text: "No user message found in context." }],
 					details: { numbers: [] as number[], sum: 0 },
 				};
 			}
+
 			const numbers = extractNumbersFromText(text);
+			console.log(`[TOOL] Found numbers: [${numbers.join(", ")}]`);
+
 			const sum = numbers.reduce((a, b) => a + b, 0);
-			return {
+			console.log(`[TOOL] Calculated sum: ${sum}`);
+
+			const result = {
 				content: [
 					{
-						type: "text",
+						type: "text" as const,
 						text: `Found ${numbers.length} number(s): [${numbers.join(", ")}]. Sum = ${sum}.`,
 					},
 				],
 				details: { numbers, sum },
 			};
+
+			console.log("[TOOL] <<< Returning result to agent\n");
+			return result;
 		},
 	};
 }
@@ -99,7 +113,6 @@ async function main(): Promise<void> {
 		initialState: {
 			systemPrompt:
 				"You are a helpful assistant. When the user asks to sum numbers that appear in their message, call the tool sum_numbers_in_last_user_message exactly once and answer using its result.",
-			// getModel expects a catalog model id; OPENROUTER_MODEL must match @mariozechner/pi-ai's generated list.
 			model: getModel("openrouter", openRouterModelId as never),
 			tools: [],
 		},
@@ -119,12 +132,17 @@ async function main(): Promise<void> {
 			if (event.message.stopReason === "error" && event.message.errorMessage) {
 				console.error(`Model error: ${event.message.errorMessage}`);
 			}
+			console.log("[EVENT] message_end - Assistant finished responding");
 		}
 	});
 
+	console.log("[MAIN] Sending demo prompt to agent...\n");
 	await agent.prompt(DEMO_PROMPT);
 	process.stdout.write("\n");
+	console.log("[MAIN] Waiting for agent to finish...");
+
 	await agent.waitForIdle();
+	console.log("[MAIN] Agent finished. Exiting.");
 }
 
 main().catch((err) => {

@@ -36,6 +36,13 @@ class ExtractorConfig:
     # Logging configuration
     log_level: str = "WARNING"
 
+    # Model API parameters
+    max_completion_tokens: int = 4096
+    temperature: float = 0.0
+    top_p: float = 1.0
+    presence_penalty: float = 0.0
+    frequency_penalty: float = 0.0
+
     def validate(self) -> None:
         if self.dpi <= 0:
             raise ValueError("dpi must be > 0")
@@ -60,3 +67,15 @@ class ExtractorConfig:
         valid_levels = ("DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL")
         if self.log_level.upper() not in valid_levels:
             raise ValueError(f"log_level must be one of {valid_levels}, got {self.log_level}")
+
+        # Validate model API parameters
+        if self.max_completion_tokens <= 0:
+            raise ValueError("max_completion_tokens must be > 0")
+        if not (0.0 <= self.temperature <= 2.0):
+            raise ValueError(f"temperature must be between 0.0 and 2.0, got {self.temperature}")
+        if not (0.0 <= self.top_p <= 1.0):
+            raise ValueError(f"top_p must be between 0.0 and 1.0, got {self.top_p}")
+        if not (-2.0 <= self.presence_penalty <= 2.0):
+            raise ValueError(f"presence_penalty must be between -2.0 and 2.0, got {self.presence_penalty}")
+        if not (-2.0 <= self.frequency_penalty <= 2.0):
+            raise ValueError(f"frequency_penalty must be between -2.0 and 2.0, got {self.frequency_penalty}")

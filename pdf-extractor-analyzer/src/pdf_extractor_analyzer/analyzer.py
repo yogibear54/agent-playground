@@ -302,11 +302,11 @@ class ReplicateVisionAnalyzer:
     def _build_input_payload(self, *, prompt: str, image_bytes: bytes | None) -> dict[str, Any]:
         payload: dict[str, Any] = {
             "prompt": prompt,
-            "max_completion_tokens": 4096,
-            "temperature": 0.0,
-            "top_p": 1.0,
-            "presence_penalty": 0,
-            "frequency_penalty": 0,
+            "max_completion_tokens": self.config.max_completion_tokens,
+            "temperature": self.config.temperature,
+            "top_p": self.config.top_p,
+            "presence_penalty": self.config.presence_penalty,
+            "frequency_penalty": self.config.frequency_penalty,
         }
 
         if image_bytes is not None:

@@ -117,3 +117,55 @@ def test_config_validation_errors(field, value, message):
     setattr(config, field, value)
     with pytest.raises(ValueError, match=message):
         config.validate()
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "message"),
+    [
+        ("max_completion_tokens", 0, "max_completion_tokens must be > 0"),
+        ("temperature", -0.1, "temperature must be between"),
+        ("temperature", 2.1, "temperature must be between"),
+        ("top_p", -0.1, "top_p must be between"),
+        ("top_p", 1.1, "top_p must be between"),
+        ("presence_penalty", -2.1, "presence_penalty must be between"),
+        ("presence_penalty", 2.1, "presence_penalty must be between"),
+        ("frequency_penalty", -2.1, "frequency_penalty must be between"),
+        ("frequency_penalty", 2.1, "frequency_penalty must be between"),
+    ],
+)
+def test_config_model_params_validation_errors(field, value, message):
+    """Test validation of model API parameters."""
+    config = ExtractorConfig()
+    setattr(config, field, value)
+    with pytest.raises(ValueError, match=message):
+        config.validate()
+
+
+def test_config_model_params_defaults():
+    """Test that model API parameters have correct defaults."""
+    config = ExtractorConfig()
+    config.validate()  # Should not raise
+
+    assert config.max_completion_tokens == 4096
+    assert config.temperature == 0.0
+    assert config.top_p == 1.0
+    assert config.presence_penalty == 0.0
+    assert config.frequency_penalty == 0.0
+
+
+def test_config_model_params_custom_values():
+    """Test that model API parameters can be customized."""
+    config = ExtractorConfig(
+        max_completion_tokens=2000,
+        temperature=0.7,
+        top_p=0.9,
+        presence_penalty=0.5,
+        frequency_penalty=0.5,
+    )
+    config.validate()  # Should not raise
+
+    assert config.max_completion_tokens == 2000
+    assert config.temperature == 0.7
+    assert config.top_p == 0.9
+    assert config.presence_penalty == 0.5
+    assert config.frequency_penalty == 0.5

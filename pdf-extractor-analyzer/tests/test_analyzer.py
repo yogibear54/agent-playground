@@ -41,6 +41,34 @@ def test_analyze_page_full_text_uses_prompt_and_image_payload():
     assert "image_input" in client.calls[0]["input"]
 
 
+def test_analyze_page_uses_config_model_params():
+    """Test that analyze_page uses configurable model parameters from ExtractorConfig."""
+    from pdf_extractor_analyzer.config import ExtractorConfig
+
+    # Create config with custom model parameters
+    config = ExtractorConfig(
+        max_completion_tokens=1000,
+        temperature=0.5,
+        top_p=0.8,
+        presence_penalty=0.3,
+        frequency_penalty=0.3,
+        max_retries=1,
+        retry_backoff_seconds=0,
+    )
+    client = FakeClient(["test output"])
+    analyzer = _make_analyzer_with_client(client, config)
+
+    output = analyzer.analyze_page(image_bytes=b"img", mode=ExtractionMode.FULL_TEXT)
+
+    # Verify custom parameters were used in the API call
+    payload = client.calls[0]["input"]
+    assert payload["max_completion_tokens"] == 1000
+    assert payload["temperature"] == 0.5
+    assert payload["top_p"] == 0.8
+    assert payload["presence_penalty"] == 0.3
+    assert payload["frequency_penalty"] == 0.3
+
+
 def test_analyze_page_structured_parses_json():
     client = FakeClient([json.dumps({"invoice_number": "INV-1"})])
     analyzer = _make_analyzer_with_client(client)

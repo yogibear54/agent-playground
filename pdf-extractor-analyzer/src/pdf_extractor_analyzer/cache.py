@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import tempfile
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -11,6 +12,9 @@ from typing import Any
 
 from .config import CacheMode
 from .exceptions import CacheError
+
+# Module logger
+logger = logging.getLogger(__name__)
 
 
 def compute_content_hash(file_path: Path) -> str:
@@ -223,7 +227,8 @@ class CacheManager:
                 if created_at < cutoff:
                     rmtree(entry, ignore_errors=True)
                     removed += 1
-            except Exception:
+            except Exception as exc:
+                logger.warning(f"Failed to process cache entry {entry}: {exc}")
                 continue
 
         return removed

@@ -172,3 +172,29 @@ def test_cache_key_uses_32_char_hash(tmp_path: Path):
     expected_name = "a" * 32
     assert key_dir.name == expected_name
     assert len(key_dir.name) == 32
+
+
+def test_cleanup_expired_logs_warning_for_corrupted_entry(tmp_path: Path, caplog):
+    """Test that cleanup_expired logs a warning for corrupted entries."""
+    import logging
+
+    cache_root = tmp_path / "cache"
+    manager = CacheManager(cache_root, mode=CacheMode.PERSISTENT, ttl_days=7)
+
+    # Create a corrupted entry with invalid metadata
+    bad_dir = cache_root / "bad-entry"
+    bad_dir.mkdir(parents=True, exist_ok=True)
+    (bad_dir / "metadata.json").write_text("invalid json", encoding="utf-8")
+
+    # Set log level to capture warnings
+    caplog.set_level(logging.WARNING)
+
+    # Run cleanup - should not raise, but should log warning
+    removed = manager.cleanup_expired()
+
+    # Entry should not be removed (couldn't parse metadata)
+    assert bad_dir.exists()
+    # Should have logged a warning
+    assert "Failed to process cache entry" in caplog.text
+    # No entries should be removed since none expired properly
+    assert removed == 0

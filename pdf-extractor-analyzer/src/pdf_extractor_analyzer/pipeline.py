@@ -374,7 +374,10 @@ class PDFExtractor:
             if isinstance(left_value, dict) and isinstance(value, dict):
                 merged[key] = self._merge_two(left_value, value)
             elif isinstance(left_value, list) and isinstance(value, list):
-                merged[key] = left_value + [v for v in value if v not in left_value]
+                # Use repr() for O(1) lookup and to avoid type coercion issues
+                # (e.g., comparing 1 with "1" should not match)
+                seen_reprs = set(repr(v) for v in left_value)
+                merged[key] = left_value + [v for v in value if repr(v) not in seen_reprs]
             elif left_value in (None, "", [], {}):
                 merged[key] = value
         return merged

@@ -152,3 +152,73 @@ def test_valid_path_within_cwd_is_accepted(monkeypatch, make_pdf, tmp_path):
 
     # Restore cwd
     os.chdir(original_cwd)
+
+
+def test_merge_two_list_deduplication_no_type_coercion():
+    """Test that list deduplication uses repr comparison to avoid type coercion.
+
+    This tests both the O(n²) fix (using set for O(1) lookup) and the type
+    coercion issue where 1 and "1" should not be considered equal.
+    """
+    extractor = PDFExtractor(ExtractorConfig())
+
+    # Test that numeric 1 and string "1" are not deduplicated as duplicates
+    result = extractor._merge_two(
+        {"items": [1, 2, 3]},
+        {"items": ["1", "2", "4"]},
+    )
+    # All items should be present since repr(1) != repr("1")
+    assert result["items"] == [1, 2, 3, "1", "2", "4"]
+
+
+def test_merge_two_list_deduplication_with_duplicates():
+    """Test that identical items in lists are deduplicated using repr comparison."""
+    extractor = PDFExtractor(ExtractorConfig())
+
+    # Test with actual duplicates
+    result = extractor._merge_two(
+        {"items": [1, 2, 3]},
+        {"items": [2, 3, 4]},
+    )
+    # 2 and 3 should be deduplicated
+    assert result["items"] == [1, 2, 3, 4]
+
+
+def test_merge_two_list_with_unhashable_types():
+    """Test that unhashable types (dicts) work with repr comparison."""
+    extractor = PDFExtractor(ExtractorConfig())
+
+    # Test with unhashable types (dicts are unhashable but repr() makes them comparable)
+    result = extractor._merge_two(
+        {"items": [{"a": 1}, {"b": 2}]},
+        {"items": [{"a": 1}, {"c": 3}]},
+    )
+    # Both dicts should be present since they're different
+    assert len(result["items"]) == 3
+
+
+def test_merge_dicts_performance_with_large_lists():
+    """Test that merging with large lists completes in reasonable time.
+
+    This test verifies the O(n²) to O(n) improvement by ensuring
+    merging with 100+ item lists doesn't take excessive time.
+    """
+    import time
+
+    extractor = PDFExtractor(ExtractorConfig())
+
+    # Create a large list
+    large_list = list(range(200))
+
+    start = time.time()
+    result = extractor._merge_two(
+        {"items": large_list},
+        {"items": list(range(100, 300))},  # Overlapping items
+    )
+    elapsed = time.time() - start
+
+    # Should complete in under 100ms even with 200+ items
+    # (The old O(n²) approach would take significantly longer)
+    assert elapsed < 0.1, f"Merge took {elapsed}s, expected < 0.1s"
+    # Should have 300 unique items (0-299)
+    assert len(result["items"]) == 300

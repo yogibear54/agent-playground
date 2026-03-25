@@ -7,7 +7,7 @@ from pathlib import Path
 import fitz
 from PIL import Image
 
-from .exceptions import ConversionError
+from .exceptions import ConversionError, ValidationError
 
 
 @dataclass(slots=True)
@@ -27,6 +27,8 @@ class PDFConverter:
         dpi: int,
         output_dir: Path | None,
         max_pages: int | None = None,
+        max_image_width: int | None = None,
+        max_image_height: int | None = None,
     ) -> list[PageImage]:
         try:
             doc = fitz.open(pdf_path)
@@ -52,6 +54,23 @@ class PDFConverter:
             for index in range(total_pages):
                 page = doc[index]
                 pix = page.get_pixmap(matrix=matrix)
+
+                # Validate image dimensions
+                if max_image_width is not None and pix.width > max_image_width:
+                    raise ValidationError(
+                        f"Page {index + 1} width ({pix.width}px) exceeds maximum allowed "
+                        f"({max_image_width}px). Consider reducing DPI.",
+                        field="image_width",
+                        value=pix.width,
+                    )
+                if max_image_height is not None and pix.height > max_image_height:
+                    raise ValidationError(
+                        f"Page {index + 1} height ({pix.height}px) exceeds maximum allowed "
+                        f"({max_image_height}px). Consider reducing DPI.",
+                        field="image_height",
+                        value=pix.height,
+                    )
+
                 image_bytes = pix.tobytes("png")
                 image_path: Path | None = None
 

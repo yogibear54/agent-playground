@@ -27,6 +27,15 @@ class ExtractorConfig:
     retry_backoff_seconds: float = 1.0
     timeout_seconds: int = 60
 
+    # Input validation limits
+    max_image_width: int = 4096
+    max_image_height: int = 4096
+    max_image_bytes: int = 20_971_520  # 20MB
+    max_pdf_file_size: int | None = None  # None = unlimited
+
+    # Logging configuration
+    log_level: str = "WARNING"
+
     def validate(self) -> None:
         if self.dpi <= 0:
             raise ValueError("dpi must be > 0")
@@ -38,3 +47,16 @@ class ExtractorConfig:
             raise ValueError("retry_backoff_seconds cannot be negative")
         if self.timeout_seconds <= 0:
             raise ValueError("timeout_seconds must be > 0")
+        if self.max_image_width <= 0:
+            raise ValueError("max_image_width must be > 0")
+        if self.max_image_height <= 0:
+            raise ValueError("max_image_height must be > 0")
+        if self.max_image_bytes <= 0:
+            raise ValueError("max_image_bytes must be > 0")
+        if self.max_pdf_file_size is not None and self.max_pdf_file_size <= 0:
+            raise ValueError("max_pdf_file_size must be > 0 or None")
+
+        # Validate log level
+        valid_levels = ("DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL")
+        if self.log_level.upper() not in valid_levels:
+            raise ValueError(f"log_level must be one of {valid_levels}, got {self.log_level}")

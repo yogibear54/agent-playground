@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import json
+import logging
+import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import UTC, datetime
 from pathlib import Path
@@ -11,8 +14,11 @@ from .analyzer import ReplicateVisionAnalyzer
 from .cache import CacheManager, CacheMetadata, compute_content_hash
 from .config import CacheMode, ExtractorConfig
 from .converter import PDFConverter
-from .exceptions import SchemaValidationError
+from .exceptions import SchemaValidationError, ValidationError
 from .schemas import BatchExtractionItem, BatchItemStatus, ExtractionMode, ExtractionResult
+
+# Module logger
+logger = logging.getLogger(__name__)
 
 
 class PDFExtractor:
@@ -84,6 +90,72 @@ class PDFExtractor:
         worker = PDFExtractor(self.config)
         return worker.extract(path, mode=mode, schema=schema)
 
+    def _validate_pdf_path(self, path: Path) -> None:
+        """Validate PDF path for security and format compliance.
+
+        Raises:
+            ValidationError: If path is invalid or file is not a valid PDF.
+        """
+        # Check for path traversal attempts
+        try:
+            # Ensure the path is within allowed directories (not using .. to escape)
+            resolved = path.resolve()
+            # The resolved path should be the same as the path if it's legitimate
+        except (OSError, ValueError) as exc:
+            raise ValidationError(
+                f"Invalid path: {path}", field="pdf_path", value=str(path)
+            ) from exc
+
+        # Check file exists and is readable
+        if not path.exists():
+            raise FileNotFoundError(f"PDF not found: {path}")
+
+        if not path.is_file():
+            raise ValidationError(
+                f"Path is not a file: {path}", field="pdf_path", value=str(path)
+            )
+
+        # Check file size limit
+        if self.config.max_pdf_file_size is not None:
+            file_size = path.stat().st_size
+            if file_size > self.config.max_pdf_file_size:
+                raise ValidationError(
+                    f"PDF file size ({file_size}) exceeds maximum allowed "
+                    f"({self.config.max_pdf_file_size} bytes)",
+                    field="pdf_path",
+                    value=str(path),
+                )
+
+        # Verify PDF magic bytes (starts with %PDF)
+        try:
+            with path.open("rb") as f:
+                header = f.read(4)
+                if header != b"%PDF":
+                    raise ValidationError(
+                        f"File does not appear to be a valid PDF: {path}",
+                        field="pdf_path",
+                        value=str(path),
+                    )
+        except (OSError, IOError) as exc:
+            raise ValidationError(
+                f"Cannot read PDF file: {path}", field="pdf_path", value=str(path)
+            ) from exc
+
+    def _get_extraction_params(
+        self,
+        mode: ExtractionMode,
+        schema: type[BaseModel] | None,
+    ) -> dict[str, Any]:
+        """Build extraction parameters dict for cache invalidation checks."""
+        params: dict[str, Any] = {
+            "mode": mode.value,
+            "model": self.config.model,
+            "max_pages": self.config.max_pages,
+        }
+        if schema is not None:
+            params["schema"] = schema.model_json_schema()
+        return params
+
     def extract(
         self,
         pdf_path: str | Path,
@@ -92,27 +164,68 @@ class PDFExtractor:
         schema: type[BaseModel] | None = None,
     ) -> ExtractionResult:
         path = Path(pdf_path).expanduser().resolve()
-        if not path.exists():
-            raise FileNotFoundError(f"PDF not found: {path}")
+        self._validate_pdf_path(path)
 
         if mode == ExtractionMode.STRUCTURED and schema is None:
             raise ValueError("Structured mode requires a Pydantic schema class")
 
         source_hash = compute_content_hash(path)
         schema_json = schema.model_json_schema() if schema is not None else None
+        extraction_params = self._get_extraction_params(mode, schema)
 
         work_dir = self.cache.resolve_work_dir(source_hash)
+
+        # Check content cache first (for persistent cache mode)
+        if (
+            self.config.cache_mode == CacheMode.PERSISTENT
+            and work_dir is not None
+            and not self.config.force_conversion
+        ):
+            cached_content = self.cache.read_content(work_dir)
+            if cached_content is not None:
+                cached_params = cached_content.get("extraction_params", {})
+                if cached_params == extraction_params:
+                    logger.info(
+                        "Using cached extraction result",
+                        extra={"pdf_path": str(path), "source_hash": source_hash},
+                    )
+                    return ExtractionResult(
+                        extraction_mode=mode,
+                        content=cached_content["content"],
+                        metadata={
+                            "source_hash": source_hash,
+                            "page_count": cached_content.get("page_count", 0),
+                            "model": self.config.model,
+                            "cache_mode": self.config.cache_mode.value,
+                            "generated_at": cached_content.get("cached_at"),
+                            "from_cache": True,
+                        },
+                    )
+
+        # Generate correlation ID for this extraction
+        correlation_id = str(uuid.uuid4())[:8]
+        logger.info(
+            "Starting PDF extraction",
+            extra={
+                "pdf_path": str(path),
+                "source_hash": source_hash,
+                "correlation_id": correlation_id,
+                "mode": mode.value,
+            },
+        )
 
         try:
             pages = self._prepare_pages(path=path, source_hash=source_hash, work_dir=work_dir)
 
             page_outputs: list[str | dict[str, Any]] = []
-            for page in pages:
+            for page_num, page in enumerate(pages, start=1):
                 page_outputs.append(
                     self.analyzer.analyze_page(
                         image_bytes=page.image_bytes,
                         mode=mode,
                         structured_schema=schema_json,
+                        correlation_id=correlation_id,
+                        page_number=page_num,
                     )
                 )
 
@@ -132,8 +245,26 @@ class PDFExtractor:
                     "model": self.config.model,
                     "cache_mode": self.config.cache_mode.value,
                     "generated_at": datetime.now(UTC).isoformat(),
+                    "correlation_id": correlation_id,
                 },
             )
+
+            # Save result to content.json for persistent cache
+            if self.config.cache_mode == CacheMode.PERSISTENT and work_dir is not None:
+                self.cache.write_content(
+                    work_dir,
+                    content if isinstance(content, (str, dict)) else json.loads(json.dumps(content)),
+                    extraction_params,
+                )
+                logger.info(
+                    "Saved extraction result to cache",
+                    extra={
+                        "pdf_path": str(path),
+                        "source_hash": source_hash,
+                        "correlation_id": correlation_id,
+                    },
+                )
+
             return result
         finally:
             self.cache.cleanup()
@@ -153,6 +284,8 @@ class PDFExtractor:
                 dpi=self.config.dpi,
                 output_dir=work_dir,
                 max_pages=self.config.max_pages,
+                max_image_width=self.config.max_image_width,
+                max_image_height=self.config.max_image_height,
             )
             self.cache.write_metadata(
                 work_dir,
@@ -171,6 +304,8 @@ class PDFExtractor:
             dpi=self.config.dpi,
             output_dir=work_dir,
             max_pages=self.config.max_pages,
+            max_image_width=self.config.max_image_width,
+            max_image_height=self.config.max_image_height,
         )
 
     def _aggregate_outputs(

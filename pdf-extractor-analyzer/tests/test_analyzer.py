@@ -4,7 +4,7 @@ import pytest
 
 from pdf_extractor_analyzer.analyzer import ReplicateVisionAnalyzer
 from pdf_extractor_analyzer.config import ExtractorConfig
-from pdf_extractor_analyzer.exceptions import AnalysisError
+from pdf_extractor_analyzer.exceptions import AnalysisError, ValidationError
 from pdf_extractor_analyzer.schemas import ExtractionMode
 
 
@@ -92,3 +92,68 @@ def test_repair_structured_output_uses_text_only_call():
     )
     assert repaired == {"a": 1, "b": 2}
     assert "image_input" not in client.calls[0]["input"]
+
+
+def test_repair_structured_output_includes_candidate_in_prompt():
+    """Verify the candidate JSON appears in the repair prompt."""
+    client = FakeClient([json.dumps({"fixed": True})])
+    analyzer = _make_analyzer_with_client(client)
+
+    candidate = {"original": "data", "nested": {"key": "value"}}
+    analyzer.repair_structured_output(
+        candidate=candidate,
+        validation_error="test error",
+        structured_schema=None,
+    )
+
+    prompt = client.calls[0]["input"]["prompt"]
+    assert "Candidate JSON to repair" in prompt
+    assert json.dumps(candidate) in prompt or json.dumps(candidate, indent=2) in prompt
+
+
+def test_repair_structured_output_validates_candidate_type():
+    """Verify non-dict candidates raise AnalysisError."""
+    client = FakeClient([json.dumps({"a": 1})])
+    analyzer = _make_analyzer_with_client(client)
+
+    with pytest.raises(AnalysisError, match="candidate must be a dict"):
+        analyzer.repair_structured_output(
+            candidate="not a dict",  # type: ignore
+            validation_error="error",
+            structured_schema=None,
+        )
+
+    with pytest.raises(AnalysisError, match="candidate must be a dict"):
+        analyzer.repair_structured_output(
+            candidate=["list", "not", "dict"],  # type: ignore
+            validation_error="error",
+            structured_schema=None,
+        )
+
+
+def test_repair_structured_output_handles_oversized_candidate():
+    """Verify oversized candidates are rejected gracefully."""
+    client = FakeClient([json.dumps({"a": 1})])
+    analyzer = _make_analyzer_with_client(client)
+
+    # Create a candidate that exceeds 100KB limit
+    oversized_candidate = {"data": "x" * 200_000}
+
+    with pytest.raises(AnalysisError, match="exceeds maximum size"):
+        analyzer.repair_structured_output(
+            candidate=oversized_candidate,
+            validation_error="error",
+            structured_schema=None,
+        )
+
+
+def test_analyze_page_validates_image_bytes_type():
+    """Verify non-bytes image_bytes raises ValidationError."""
+    client = FakeClient(["output"])
+    analyzer = _make_analyzer_with_client(client)
+
+    with pytest.raises(ValidationError, match="image_bytes must be bytes"):
+        analyzer.analyze_page(
+            image_bytes="not bytes",  # type: ignore
+            mode=ExtractionMode.FULL_TEXT,
+        )

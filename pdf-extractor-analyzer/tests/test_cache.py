@@ -96,3 +96,79 @@ def test_cleanup_expired_removes_old_entries(tmp_path: Path):
     assert removed == 1
     assert not old_dir.exists()
     assert new_dir.exists()
+
+
+def test_write_and_read_content(tmp_path: Path):
+    """Test writing and reading content.json."""
+    manager = CacheManager(tmp_path, mode=CacheMode.PERSISTENT)
+    cache_dir = tmp_path / "test-cache"
+    cache_dir.mkdir()
+
+    content = {"extracted": "data", "value": 123}
+    params = {"mode": "full_text", "model": "gpt-4o"}
+
+    manager.write_content(cache_dir, content, params)
+
+    # Verify file exists
+    content_path = cache_dir / "content.json"
+    assert content_path.exists()
+
+    # Read back and verify
+    cached = manager.read_content(cache_dir)
+    assert cached is not None
+    assert cached["content"] == content
+    assert cached["extraction_params"] == params
+    assert "cached_at" in cached
+
+
+def test_is_content_cache_hit(tmp_path: Path):
+    """Test content cache hit detection."""
+    manager = CacheManager(tmp_path, mode=CacheMode.PERSISTENT)
+    cache_dir = tmp_path / "test-cache"
+    cache_dir.mkdir()
+
+    content = {"result": "test"}
+    params = {"mode": "summary", "model": "gpt-4o"}
+
+    manager.write_content(cache_dir, content, params)
+
+    # Should hit with matching params
+    assert manager.is_content_cache_hit(cache_dir, params) is True
+
+    # Should miss with different params
+    different_params = {"mode": "full_text", "model": "gpt-4o"}
+    assert manager.is_content_cache_hit(cache_dir, different_params) is False
+
+
+def test_read_content_handles_missing_file(tmp_path: Path):
+    """Test read_content returns None for missing content.json."""
+    manager = CacheManager(tmp_path, mode=CacheMode.PERSISTENT)
+    cache_dir = tmp_path / "empty-cache"
+    cache_dir.mkdir()
+
+    assert manager.read_content(cache_dir) is None
+
+
+def test_read_content_handles_corrupted_file(tmp_path: Path):
+    """Test read_content returns None for corrupted content.json."""
+    manager = CacheManager(tmp_path, mode=CacheMode.PERSISTENT)
+    cache_dir = tmp_path / "corrupt-cache"
+    cache_dir.mkdir()
+
+    # Write invalid JSON
+    (cache_dir / "content.json").write_text("not valid json", encoding="utf-8")
+
+    assert manager.read_content(cache_dir) is None
+
+
+def test_cache_key_uses_32_char_hash(tmp_path: Path):
+    """Test that cache_key_dir uses 32 characters of the hash."""
+    manager = CacheManager(tmp_path, mode=CacheMode.PERSISTENT)
+    full_hash = "a" * 64
+
+    key_dir = manager.cache_key_dir(full_hash, tmp_path)
+
+    # Should use 32 characters
+    expected_name = "a" * 32
+    assert key_dir.name == expected_name
+    assert len(key_dir.name) == 32

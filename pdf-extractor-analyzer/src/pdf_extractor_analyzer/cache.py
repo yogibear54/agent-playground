@@ -50,7 +50,10 @@ class CacheManager:
 
     @staticmethod
     def cache_key_dir(source_hash: str, base_cache_dir: Path) -> Path:
-        return base_cache_dir / source_hash[:16]
+        # Use 32 characters of SHA256 hash for cache directory name
+        # This provides good collision resistance (2^128 possible combinations)
+        # while keeping path lengths manageable
+        return base_cache_dir / source_hash[:32]
 
     def resolve_work_dir(self, source_hash: str) -> Path | None:
         if self.mode == CacheMode.DISABLED:
@@ -61,7 +64,7 @@ class CacheManager:
             work_dir.mkdir(parents=True, exist_ok=True)
             return work_dir
 
-        temp_dir = Path(tempfile.mkdtemp(prefix=f"pdfx-{source_hash[:8]}-"))
+        temp_dir = Path(tempfile.mkdtemp(prefix=f"pdfx-{source_hash[:16]}-"))
         self._ephemeral_dirs.append(temp_dir)
         return temp_dir
 
@@ -124,6 +127,75 @@ class CacheManager:
 
         pages = self.list_page_images(cache_dir)
         return len(pages) == metadata.page_count and metadata.page_count > 0
+
+    def content_path(self, cache_dir: Path) -> Path:
+        """Return the path to the content.json file in the cache directory."""
+        return cache_dir / "content.json"
+
+    def write_content(
+        self,
+        cache_dir: Path,
+        content: dict[str, Any],
+        extraction_params: dict[str, Any] | None = None,
+    ) -> None:
+        """Write extraction result to content.json with parameters for cache invalidation.
+
+        Args:
+            cache_dir: The cache directory path
+            content: The extraction result content
+            extraction_params: Parameters used for extraction (mode, model, etc.)
+        """
+        path = self.content_path(cache_dir)
+        data = {
+            "content": content,
+            "extraction_params": extraction_params or {},
+            "cached_at": datetime.now(UTC).isoformat(),
+        }
+        path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+
+    def read_content(self, cache_dir: Path) -> dict[str, Any] | None:
+        """Read cached extraction result from content.json.
+
+        Args:
+            cache_dir: The cache directory path
+
+        Returns:
+            The cached data dict with 'content' and 'extraction_params', or None if not found/invalid
+        """
+        path = self.content_path(cache_dir)
+        if not path.exists():
+            return None
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+            return {
+                "content": data.get("content"),
+                "extraction_params": data.get("extraction_params", {}),
+                "cached_at": data.get("cached_at"),
+            }
+        except (json.JSONDecodeError, KeyError, TypeError):
+            return None
+
+    def is_content_cache_hit(
+        self,
+        cache_dir: Path,
+        extraction_params: dict[str, Any],
+    ) -> bool:
+        """Check if valid cached content exists matching the extraction parameters.
+
+        Args:
+            cache_dir: The cache directory path
+            extraction_params: Current extraction parameters to compare
+
+        Returns:
+            True if valid cached content exists with matching parameters
+        """
+        cached = self.read_content(cache_dir)
+        if cached is None:
+            return False
+
+        # Compare extraction parameters
+        cached_params = cached.get("extraction_params", {})
+        return cached_params == extraction_params
 
     def cleanup_expired(self) -> int:
         if self.mode != CacheMode.PERSISTENT:

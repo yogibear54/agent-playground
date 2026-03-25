@@ -67,46 +67,60 @@ def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
 
-    mode = ExtractionMode(args.mode)
-    schema_class: type[BaseModel] | None = None
-    if mode == ExtractionMode.STRUCTURED:
-        if not args.schema_import:
-            parser.error("Structured mode requires --schema-import module:ClassName")
-        schema_class = _schema_from_import(args.schema_import)
+    try:
+        mode = ExtractionMode(args.mode)
+        schema_class: type[BaseModel] | None = None
+        if mode == ExtractionMode.STRUCTURED:
+            if not args.schema_import:
+                parser.error("Structured mode requires --schema-import module:ClassName")
+            schema_class = _schema_from_import(args.schema_import)
 
-    config = ExtractorConfig(
-        dpi=args.dpi,
-        cache_mode=CacheMode(args.cache_mode),
-        cache_dir=Path(args.cache_dir),
-        cache_ttl_days=args.cache_ttl_days,
-        model=args.model,
-        fallback_model=args.fallback_model,
-        max_pages=args.max_pages,
-    )
-
-    extractor = PDFExtractor(config)
-    if len(args.pdf_paths) == 1:
-        result = extractor.extract(args.pdf_paths[0], mode=mode, schema=schema_class)
-        payload = result.model_dump()
-    else:
-        results = extractor.extract_many(
-            args.pdf_paths,
-            mode=mode,
-            schema=schema_class,
-            max_workers=args.max_workers,
-            continue_on_error=not args.stop_on_error,
+        config = ExtractorConfig(
+            dpi=args.dpi,
+            cache_mode=CacheMode(args.cache_mode),
+            cache_dir=Path(args.cache_dir),
+            cache_ttl_days=args.cache_ttl_days,
+            model=args.model,
+            fallback_model=args.fallback_model,
+            max_pages=args.max_pages,
         )
-        payload = [item.model_dump() for item in results]
 
-    text = json.dumps(payload, indent=2 if args.pretty else None)
-    if args.output:
-        Path(args.output).write_text(text, encoding="utf-8")
-    else:
-        sys.stdout.write(text)
-        if not text.endswith("\n"):
-            sys.stdout.write("\n")
+        extractor = PDFExtractor(config)
+        if len(args.pdf_paths) == 1:
+            result = extractor.extract(args.pdf_paths[0], mode=mode, schema=schema_class)
+            payload = result.model_dump()
+        else:
+            results = extractor.extract_many(
+                args.pdf_paths,
+                mode=mode,
+                schema=schema_class,
+                max_workers=args.max_workers,
+                continue_on_error=not args.stop_on_error,
+            )
+            payload = [item.model_dump() for item in results]
 
-    return 0
+        text = json.dumps(payload, indent=2 if args.pretty else None)
+        if args.output:
+            Path(args.output).write_text(text, encoding="utf-8")
+        else:
+            sys.stdout.write(text)
+            if not text.endswith("\n"):
+                sys.stdout.write("\n")
+
+        return 0
+
+    except KeyboardInterrupt:
+        return 130  # 128 + SIGINT(2) - standard convention for SIGINT
+    except (ValueError, TypeError) as exc:
+        # Argument/validation errors - print to stderr
+        sys.stderr.write(f"Error: {exc}\n")
+        return 2
+    except Exception as exc:
+        # Unexpected errors - print to stderr with full traceback
+        import traceback
+        sys.stderr.write(f"Error: {exc}\n")
+        sys.stderr.write(traceback.format_exc())
+        return 1
 
 
 if __name__ == "__main__":

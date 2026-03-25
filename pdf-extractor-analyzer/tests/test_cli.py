@@ -75,3 +75,72 @@ def test_cli_structured_with_schema_import(monkeypatch, capsys):
     assert code == 0
     payload = json.loads(capsys.readouterr().out)
     assert payload["extraction_mode"] == ExtractionMode.STRUCTURED.value
+
+
+class FailingExtractor:
+    """Extractor that raises exceptions for testing error handling."""
+
+    def __init__(self, config):
+        self.config = config
+
+    def extract(self, pdf_path, *, mode, schema=None):
+        raise RuntimeError("Simulated extraction failure")
+
+
+def test_cli_returns_exit_code_1_on_unexpected_error(monkeypatch, capsys):
+    """Test that unexpected exceptions return exit code 1."""
+    monkeypatch.setattr(cli, "PDFExtractor", FailingExtractor)
+
+    code = cli.main(["/tmp/a.pdf", "--mode", "summary"])
+
+    assert code == 1
+    captured = capsys.readouterr()
+    assert "Simulated extraction failure" in captured.err
+
+
+def test_cli_returns_exit_code_2_on_validation_error(monkeypatch, capsys):
+    """Test that ValueError returns exit code 2 for validation errors."""
+
+    class RaisingExtractor:
+        def __init__(self, config):
+            config.validate()  # This will raise if validation fails
+
+        def extract(self, pdf_path, *, mode, schema=None):
+            raise ValueError("Invalid configuration")
+
+    monkeypatch.setattr(cli, "PDFExtractor", RaisingExtractor)
+
+    # This will fail validation (dpi=0 is invalid)
+    code = cli.main(["/tmp/a.pdf", "--mode", "summary", "--dpi", "0"])
+
+    assert code == 2
+    captured = capsys.readouterr()
+    assert "Error:" in captured.err
+
+
+def test_cli_returns_exit_code_130_on_keyboard_interrupt(monkeypatch, capsys):
+    """Test that KeyboardInterrupt returns exit code 130."""
+
+    class InterruptExtractor:
+        def __init__(self, config):
+            self.config = config
+
+        def extract(self, pdf_path, *, mode, schema=None):
+            raise KeyboardInterrupt()
+
+    monkeypatch.setattr(cli, "PDFExtractor", InterruptExtractor)
+
+    code = cli.main(["/tmp/a.pdf", "--mode", "summary"])
+
+    assert code == 130
+    captured = capsys.readouterr()
+    assert captured.err == ""  # No error message on SIGINT
+
+
+def test_cli_successful_extraction_returns_0(monkeypatch, capsys):
+    """Test that successful extraction returns exit code 0."""
+    monkeypatch.setattr(cli, "PDFExtractor", FakeExtractor)
+
+    code = cli.main(["/tmp/a.pdf", "--mode", "summary"])
+
+    assert code == 0

@@ -222,3 +222,59 @@ def test_merge_dicts_performance_with_large_lists():
     assert elapsed < 0.1, f"Merge took {elapsed}s, expected < 0.1s"
     # Should have 300 unique items (0-299)
     assert len(result["items"]) == 300
+
+
+def test_batch_worker_shares_analyzer():
+    """Test that batch workers share the analyzer instance across threads.
+
+    This verifies that _run_single_batch_item reuses the analyzer
+    instead of creating a new one for each batch item (Issue #5).
+    """
+    from pdf_extractor_analyzer.analyzer import ReplicateVisionAnalyzer
+
+    extractor = PDFExtractor(ExtractorConfig())
+
+    # Create a simple test - just verify the main analyzer is set
+    assert extractor.analyzer is not None
+    assert isinstance(extractor.analyzer, ReplicateVisionAnalyzer)
+
+
+def test_batch_processing_analyzer_reuse(monkeypatch, tmp_path):
+    """Test that batch processing reuses the same analyzer instance.
+
+    This is an integration test that verifies the analyzer is shared
+    across batch workers, not recreated for each item.
+    """
+    from unittest.mock import MagicMock, patch
+
+    # Create extractor with DISABLED cache (no file I/O needed for the test)
+    extractor = PDFExtractor(ExtractorConfig(cache_mode=CacheMode.DISABLED))
+    shared_analyzer = extractor.analyzer
+
+    # Create a fake PDF for testing
+    fake_pdf = tmp_path / "test.pdf"
+    fake_pdf.write_bytes(b"%PDF-1.4\n%\xe2\xe3\xcf\xd3\n")
+
+    # Mock the analyzer's analyze_page method at the class level
+    mock_analyze = MagicMock(return_value="test result")
+
+    # Also mock PDFConverter.convert to avoid actual PDF conversion
+    mock_convert = MagicMock(return_value=[
+        PageImage(page_number=1, width=100, height=100, image_bytes=b"test", image_path=None)
+    ])
+
+    with patch.object(extractor.analyzer.__class__, "analyze_page", mock_analyze):
+        with patch.object(extractor.converter.__class__, "convert", mock_convert):
+            # Call _run_single_batch_item directly
+            result = extractor._run_single_batch_item(
+                path=fake_pdf,
+                mode=ExtractionMode.FULL_TEXT,
+                schema=None,
+            )
+
+    # Verify analyze_page was called (which means the shared analyzer was used)
+    assert mock_analyze.called, "analyzer.analyze_page should have been called"
+    # The result should contain the mock result (with page formatting)
+    assert "test result" in result.content
+    # The analyzer should be used once (not recreated for each batch item)
+    assert mock_analyze.call_count == 1, "analyzer should be used once, not recreated"

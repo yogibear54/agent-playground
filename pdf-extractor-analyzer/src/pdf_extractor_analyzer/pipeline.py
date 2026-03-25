@@ -87,7 +87,17 @@ class PDFExtractor:
         mode: ExtractionMode,
         schema: type[BaseModel] | None,
     ) -> ExtractionResult:
-        worker = PDFExtractor(self.config)
+        # Create per-thread worker that shares the analyzer (expensive API calls)
+        # but has its own converter and cache manager for thread safety
+        worker = PDFExtractor.__new__(PDFExtractor)
+        worker.config = self.config
+        worker.analyzer = self.analyzer  # Share the analyzer across workers
+        worker.converter = PDFConverter()  # New converter per worker (thread-safe)
+        worker.cache = CacheManager(  # New cache per worker (thread-safe)
+            base_cache_dir=self.config.cache_dir,
+            mode=self.config.cache_mode,
+            ttl_days=self.config.cache_ttl_days,
+        )
         return worker.extract(path, mode=mode, schema=schema)
 
     def _validate_pdf_path(self, path: Path) -> None:

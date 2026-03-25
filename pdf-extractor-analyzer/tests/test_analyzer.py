@@ -82,6 +82,39 @@ def test_structured_json_extraction_failure_raises():
         analyzer.analyze_page(image_bytes=b"img", mode=ExtractionMode.STRUCTURED)
 
 
+def test_structured_json_extraction_failure_includes_text_preview():
+    """Test that extraction failure includes a preview of the problematic text."""
+    client = FakeClient(["not valid json output from model"])
+    analyzer = _make_analyzer_with_client(client)
+
+    with pytest.raises(AnalysisError) as exc_info:
+        analyzer.analyze_page(image_bytes=b"img", mode=ExtractionMode.STRUCTURED)
+
+    error_msg = str(exc_info.value)
+    # Should mention attempted strategies
+    assert "3 strategies" in error_msg
+    # Should include text preview
+    assert "not valid json" in error_msg
+
+
+def test_structured_json_extraction_failure_with_long_text():
+    """Test that long text is truncated in the error message."""
+    long_text = "x" * 500  # Very long text
+    client = FakeClient([long_text])
+    analyzer = _make_analyzer_with_client(client)
+
+    with pytest.raises(AnalysisError) as exc_info:
+        analyzer.analyze_page(image_bytes=b"img", mode=ExtractionMode.STRUCTURED)
+
+    error_msg = str(exc_info.value)
+    # Should be truncated
+    assert "..." in error_msg
+    # Should still include beginning of text
+    assert long_text[:200] in error_msg
+    # Should not include full text
+    assert long_text[200:] not in error_msg
+
+
 def test_repair_structured_output_uses_text_only_call():
     client = FakeClient([json.dumps({"a": 1, "b": 2})])
     analyzer = _make_analyzer_with_client(client)

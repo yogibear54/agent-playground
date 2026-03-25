@@ -331,29 +331,43 @@ class ReplicateVisionAnalyzer:
 
     def _extract_json_object(self, text: str) -> dict[str, Any]:
         stripped = text.strip()
+
+        # Strategy 1: Direct JSON parsing
         try:
             return json.loads(stripped)
-        except json.JSONDecodeError:
-            pass
+        except json.JSONDecodeError as exc:
+            logger.debug(f"Direct JSON parsing failed: {exc}")
 
+        # Strategy 2: Extract from code fences (```json ... ```)
         if "```" in stripped:
+            logger.debug("Attempting to extract JSON from code fences")
             fenced = stripped.split("```")
-            for block in fenced:
+            for idx, block in enumerate(fenced):
                 candidate = block.strip()
                 if candidate.startswith("json"):
                     candidate = candidate[4:].strip()
                 try:
-                    return json.loads(candidate)
+                    result = json.loads(candidate)
+                    logger.debug(f"Successfully parsed JSON from fenced block {idx}")
+                    return result
                 except json.JSONDecodeError:
                     continue
 
+        # Strategy 3: Extract by finding braces
         start = stripped.find("{")
         end = stripped.rfind("}")
         if start != -1 and end != -1 and end > start:
             candidate = stripped[start : end + 1]
+            logger.debug(f"Attempting to parse braced content: {candidate[:100]}...")
             try:
                 return json.loads(candidate)
-            except json.JSONDecodeError:
-                pass
+            except json.JSONDecodeError as exc:
+                logger.debug(f"Brace extraction failed: {exc}")
 
-        raise AnalysisError("Model did not return valid JSON for structured extraction")
+        # All strategies failed - provide detailed error message
+        preview = stripped[:200] + "..." if len(stripped) > 200 else stripped
+        raise AnalysisError(
+            f"Model did not return valid JSON for structured extraction. "
+            f"Attempted 3 strategies (direct, fenced blocks, brace extraction). "
+            f"Text preview: {preview!r}"
+        )

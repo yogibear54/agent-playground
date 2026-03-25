@@ -98,13 +98,23 @@ class PDFExtractor:
         """
         # Check for path traversal attempts
         try:
-            # Ensure the path is within allowed directories (not using .. to escape)
             resolved = path.resolve()
-            # The resolved path should be the same as the path if it's legitimate
         except (OSError, ValueError) as exc:
             raise ValidationError(
                 f"Invalid path: {path}", field="pdf_path", value=str(path)
             ) from exc
+
+        # Security check: ensure resolved path stays within the allowed root
+        # (current working directory by default, preventing /etc/passwd style attacks)
+        allowed_root = Path.cwd()
+        try:
+            resolved.relative_to(allowed_root)
+        except ValueError:
+            raise ValidationError(
+                f"Path escapes allowed directory (path traversal detected): {path}",
+                field="pdf_path",
+                value=str(path),
+            )
 
         # Check file exists and is readable
         if not path.exists():

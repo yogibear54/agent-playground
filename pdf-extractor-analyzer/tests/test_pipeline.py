@@ -88,3 +88,67 @@ def test_extract_includes_metadata(monkeypatch, make_pdf):
     assert result.metadata["model"] == "test-model"
     assert result.metadata["cache_mode"] == CacheMode.DISABLED.value
     assert result.metadata["page_count"] == 2
+
+
+def test_path_traversal_blocked_for_absolute_paths_outside_cwd(tmp_path):
+    """Test that absolute paths outside the current working directory are rejected."""
+    import tempfile
+    from pdf_extractor_analyzer.exceptions import ValidationError
+
+    # Create a fake PDF file in a location that is guaranteed to be outside cwd
+    # Use a known system directory or create our own location
+    with tempfile.TemporaryDirectory() as outside_dir:
+        fake_pdf = Path(outside_dir) / "fake.pdf"
+        fake_pdf.write_bytes(b"%PDF-1.4 fake")
+
+        extractor = PDFExtractor(ExtractorConfig(cache_mode=CacheMode.DISABLED))
+
+        # Attempt to extract using absolute path that escapes cwd
+        with pytest.raises(ValidationError, match="path traversal"):
+            extractor.extract(str(fake_pdf), mode=ExtractionMode.FULL_TEXT)
+
+
+def test_path_traversal_blocked_for_relative_parent_directory_attacks(tmp_path, monkeypatch):
+    """Test that relative paths with '..' that escape cwd are rejected."""
+    from pdf_extractor_analyzer.exceptions import ValidationError
+
+    extractor = PDFExtractor(ExtractorConfig(cache_mode=CacheMode.DISABLED))
+
+    # Create a fake PDF in a subdirectory
+    subdir = tmp_path / "subdir"
+    subdir.mkdir()
+    fake_pdf = subdir / "fake.pdf"
+    fake_pdf.write_bytes(b"%PDF-1.4 fake")
+
+    # Calculate path that goes from subdir back to tmp_path root and into another dir
+    # This simulates: subdir/../../tmp_other/fake.pdf
+    evil_path = Path("..") / ".." / fake_pdf.name
+
+    # Mock cwd to be the subdirectory so the path would escape
+    monkeypatch.chdir(subdir)
+
+    with pytest.raises(ValidationError, match="path traversal"):
+        extractor.extract(str(evil_path), mode=ExtractionMode.FULL_TEXT)
+
+
+def test_valid_path_within_cwd_is_accepted(monkeypatch, make_pdf, tmp_path):
+    """Test that valid paths within the current working directory are accepted."""
+    import os
+
+    # Change to tmp_path so make_pdf creates file within cwd
+    original_cwd = os.getcwd()
+    monkeypatch.chdir(tmp_path)
+
+    # Create a valid PDF within the test's temp directory (now the cwd)
+    pdf_path = make_pdf("valid.pdf", pages=1)
+
+    extractor = PDFExtractor(ExtractorConfig(cache_mode=CacheMode.DISABLED))
+    monkeypatch.setattr(PDFExtractor, "_prepare_pages", lambda *args, **kwargs: _fake_pages())
+    monkeypatch.setattr(extractor.analyzer, "analyze_page", lambda **kwargs: "valid")
+
+    # Should not raise - path is within cwd
+    result = extractor.extract(str(pdf_path), mode=ExtractionMode.FULL_TEXT)
+    assert result is not None
+
+    # Restore cwd
+    os.chdir(original_cwd)

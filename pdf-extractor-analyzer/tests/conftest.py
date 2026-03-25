@@ -1,9 +1,16 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import fitz
 import pytest
+
+
+@pytest.fixture(autouse=True)
+def change_to_tmp_path(tmp_path: Path, monkeypatch):
+    """Change to tmp_path for all tests so path validation works correctly."""
+    monkeypatch.chdir(tmp_path)
 
 
 @pytest.fixture

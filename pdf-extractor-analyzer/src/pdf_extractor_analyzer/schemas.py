@@ -10,6 +10,7 @@ class ExtractionMode(str, Enum):
     FULL_TEXT = "full_text"
     STRUCTURED = "structured"
     SUMMARY = "summary"
+    MARKDOWN = "markdown"
 
 
 class ExtractionResult(BaseModel):

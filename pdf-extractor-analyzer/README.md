@@ -6,8 +6,9 @@ Image-first PDF extraction and analysis for mixed or unknown PDF formats.
 
 - PDF -> page images via PyMuPDF
 - Vision analysis via Replicate-hosted models (default `openai/gpt-4o`)
-- Modes: `full_text`, `summary`, `structured`
+- Modes: `full_text`, `summary`, `structured`, `markdown`
 - Structured mode with user-provided Pydantic schema classes
+- Markdown mode outputs both `content.json` and `content.md` with LLM-generated Markdown
 - Cache modes: `persistent`, `ephemeral`, `disabled`
 - Single-document API (`extract`) and multi-document API (`extract_many`)
 - CLI and Python library support
@@ -75,6 +76,12 @@ Batch processing (parallel workers):
 pdf-extractor ./sample-pdfs/a.pdf ./sample-pdfs/b.pdf --mode summary --max-workers 2 --pretty
 ```
 
+Markdown extraction (saves `content.json` and `content.md`):
+
+```bash
+pdf-extractor ./sample-pdfs/sample.pdf --mode markdown --cache-mode persistent --pretty
+```
+
 Fail fast on first batch error:
 
 ```bash
@@ -113,6 +120,10 @@ batch = extractor.extract_many(
 )
 for item in batch:
     print(item.model_dump())
+
+# Markdown extraction (outputs both content.json and content.md)
+md_result = extractor.extract("document.pdf", mode=ExtractionMode.MARKDOWN)
+print(md_result.model_dump())
 ```
 
 ## Output Shape
@@ -157,6 +168,43 @@ Batch extraction returns a list of items:
 - `persistent`: writes/reads cache under `cache_dir` using PDF content hash
 - `ephemeral`: temporary per-run cache cleaned automatically
 - `disabled`: no cache reads/writes
+
+## Extraction Modes
+
+| Mode | Output | Description |
+|------|--------|-------------|
+| `full_text` | String | Transcribes all text with layout preservation |
+| `summary` | String | 3-5 sentence summary with key details |
+| `structured` | JSON dict | Extracts data matching a Pydantic schema |
+| `markdown` | String (Markdown) | Converts page to Markdown with proper formatting |
+
+### Markdown Mode
+
+The `markdown` mode instructs the LLM to:
+- Use `#` and `##` for headings
+- Use `**bold**` for emphasis
+- Use bullet points (`-`) and numbered lists
+- Use code blocks (` ``` `) for technical content
+- Convert tables to Markdown table format
+- Preserve document structure and hierarchy
+
+Output is aggregated across pages with `---` separators and page headers (`## Page N`).
+
+## Cached Output Files
+
+When using `cache_mode=persistent`, extraction results are saved to the cache directory:
+
+- `content.json`: Contains the extraction result with `content`, `extraction_params`, and `cached_at` fields
+- `content.md`: Created additionally when using `markdown` mode, containing the same content in Markdown format with page separators
+
+```
+cache/
+└── <hash>/
+    ├── content.json   # Always created
+    ├── content.md     # Only for markdown mode
+    ├── metadata.json
+    └── page_*.png     # Rendered page images
+```
 
 ## Current Scope
 

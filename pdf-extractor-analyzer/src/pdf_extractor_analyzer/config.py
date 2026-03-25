@@ -28,8 +28,8 @@ class ExtractorConfig:
     timeout_seconds: int = 60
 
     # Input validation limits
-    max_image_width: int = 4096
-    max_image_height: int = 4096
+    max_image_width: int = 8000
+    max_image_height: int = 8000
     max_image_bytes: int = 20_971_520  # 20MB
     max_pdf_file_size: int | None = None  # None = unlimited
 

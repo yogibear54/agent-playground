@@ -285,6 +285,19 @@ class PDFExtractor:
                     },
                 )
 
+                # Additionally save markdown file for markdown mode
+                if mode == ExtractionMode.MARKDOWN and isinstance(content, str):
+                    md_path = self.cache.content_md_path(work_dir)
+                    md_path.write_text(content, encoding="utf-8")
+                    logger.info(
+                        "Saved markdown file",
+                        extra={
+                            "pdf_path": str(path),
+                            "source_hash": source_hash,
+                            "markdown_path": str(md_path),
+                        },
+                    )
+
             return result
         finally:
             self.cache.cleanup()
@@ -343,6 +356,10 @@ class PDFExtractor:
         if mode == ExtractionMode.SUMMARY:
             chunks = [f"Page {idx}: {value}" for idx, value in enumerate(outputs, start=1)]
             return "\n".join(chunks)
+
+        if mode == ExtractionMode.MARKDOWN:
+            chunks = [f"## Page {idx}\n\n{value}" for idx, value in enumerate(outputs, start=1)]
+            return "\n\n---\n\n".join(chunks)
 
         structured_outputs = [value for value in outputs if isinstance(value, dict)]
         merged = self._merge_dicts(structured_outputs)

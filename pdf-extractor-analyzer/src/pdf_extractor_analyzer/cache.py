@@ -136,6 +136,10 @@ class CacheManager:
         """Return the path to the content.json file in the cache directory."""
         return cache_dir / "content.json"
 
+    def content_md_path(self, cache_dir: Path) -> Path:
+        """Return the path to the content.md file in the cache directory."""
+        return cache_dir / "content.md"
+
     def write_content(
         self,
         cache_dir: Path,

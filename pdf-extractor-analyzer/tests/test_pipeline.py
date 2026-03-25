@@ -52,6 +52,64 @@ def test_extract_summary_aggregation(monkeypatch, make_pdf):
     assert result.content == "Page 1: summary a\nPage 2: summary b"
 
 
+def test_extract_markdown_aggregation(monkeypatch, make_pdf):
+    pdf_path = make_pdf("doc-markdown.pdf", pages=1)
+    extractor = PDFExtractor(ExtractorConfig(cache_mode=CacheMode.DISABLED))
+
+    monkeypatch.setattr(PDFExtractor, "_prepare_pages", lambda *args, **kwargs: _fake_pages())
+    outputs = iter(["## Header\n\nSome content", "## Second Page\n\nMore content"])
+    monkeypatch.setattr(extractor.analyzer, "analyze_page", lambda **kwargs: next(outputs))
+
+    result = extractor.extract(pdf_path, mode=ExtractionMode.MARKDOWN)
+    assert "## Page 1" in result.content
+    assert "## Page 2" in result.content
+    assert "## Header" in result.content
+    assert "---" in result.content  # Separator between pages
+
+
+def test_extract_markdown_saves_md_file(monkeypatch, make_pdf, tmp_path):
+    """Test that markdown mode saves both content.json and content.md to cache."""
+    import json
+    from pdf_extractor_analyzer.cache import CacheManager, compute_content_hash
+
+    pdf_path = make_pdf("doc-markdown-file.pdf", pages=1)
+    cache_dir = tmp_path / "cache"
+    cache_dir.mkdir()
+    extractor = PDFExtractor(ExtractorConfig(
+        cache_mode=CacheMode.PERSISTENT,
+        cache_dir=cache_dir,
+    ))
+
+    # Compute the source hash that will be used for the cache directory
+    source_hash = compute_content_hash(Path(pdf_path))
+
+    monkeypatch.setattr(PDFExtractor, "_prepare_pages", lambda *args, **kwargs: _fake_pages())
+    monkeypatch.setattr(extractor.analyzer, "analyze_page", lambda **kwargs: "Page content")
+
+    result = extractor.extract(pdf_path, mode=ExtractionMode.MARKDOWN)
+
+    # The cache creates a subdirectory based on source_hash
+    work_dir = cache_dir / source_hash[:32]
+
+    # content.json should exist in the work directory
+    content_json = work_dir / "content.json"
+    assert content_json.exists(), f"content.json should be created at {content_json}"
+
+    # content.md should exist for markdown mode
+    content_md = work_dir / "content.md"
+    assert content_md.exists(), f"content.md should be created for markdown mode at {content_md}"
+
+    # Verify content.json structure
+    data = json.loads(content_json.read_text())
+    assert "content" in data
+    assert "extraction_params" in data
+
+    # Verify content.md has the markdown content
+    md_content = content_md.read_text()
+    assert "Page 1" in md_content
+    assert "Page 2" in md_content
+
+
 # Import_REMOVED test_extract_structured_validation_repair:
 # This test was removed because the validation repair flow is integration-tested
 # in test_analyzer.py tests and complete flow testing requires complex

@@ -69,6 +69,21 @@ def test_analyze_page_uses_config_model_params():
     assert payload["frequency_penalty"] == 0.3
 
 
+def test_analyze_page_markdown_uses_markdown_prompt():
+    """Test that markdown mode uses a prompt asking for Markdown output."""
+    client = FakeClient(["## Heading\n\nSome **bold** text"])
+    analyzer = _make_analyzer_with_client(client)
+
+    output = analyzer.analyze_page(image_bytes=b"img", mode=ExtractionMode.MARKDOWN)
+
+    assert output == "## Heading\n\nSome **bold** text"
+    # Verify the prompt contains markdown instructions
+    prompt = client.calls[0]["input"]["prompt"]
+    assert "Markdown" in prompt
+    assert "#" in prompt
+    assert "headings" in prompt
+
+
 def test_analyze_page_structured_parses_json():
     client = FakeClient([json.dumps({"invoice_number": "INV-1"})])
     analyzer = _make_analyzer_with_client(client)

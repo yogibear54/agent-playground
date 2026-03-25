@@ -206,6 +206,18 @@ class ReplicateVisionAnalyzer:
                 "entities, and actions."
             )
 
+        if mode == ExtractionMode.MARKDOWN:
+            return (
+                "Convert this page to Markdown format. Use proper Markdown syntax:\n"
+                "- Use # for headings, ## for subheadings\n"
+                "- Use **bold** for emphasis where appropriate\n"
+                "- Use bullet points (-) or numbered lists for items\n"
+                "- Use code blocks (```) for any code or technical content\n"
+                "- Preserve the document structure and hierarchy\n"
+                "- Extract tables as Markdown tables where possible\n"
+                "- Include all relevant content, do not summarize or omit details"
+            )
+
         schema_text = ""
         if structured_schema is not None:
             schema_text = f"\nJSON schema to follow:\n{json.dumps(structured_schema, indent=2)}"

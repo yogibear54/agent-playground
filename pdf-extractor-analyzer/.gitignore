@@ -10,3 +10,4 @@ cache/
 *.pyd
 *.log
 .env
+sample-pdfs/

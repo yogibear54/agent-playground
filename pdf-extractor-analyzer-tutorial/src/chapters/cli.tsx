@@ -1,4 +1,5 @@
 import type { ChapterData } from './types';
+import Pre from '../components/Pre';
 
 export const cliContent: ChapterData = {
   id: 'cli',
@@ -13,16 +14,16 @@ export const cliContent: ChapterData = {
       </p>
 
       <h2>Installation</h2>
-      <pre><code>{`# Install the package
+      <Pre>{`# Install the package
 pip install -e .
 
 # CLI is now available
-pdf-extractor --help`}</code></pre>
+pdf-extractor --help`}</Pre>
 
       <h2>Command Options</h2>
 
       <h3>Positional Arguments</h3>
-      <pre><code>{`pdf-extractor <PDF_PATHS...>    # One or more PDF files to process`}</code></pre>
+      <Pre>{`pdf-extractor <PDF_PATHS...>    # One or more PDF files to process`}</Pre>
 
       <h3>Extraction Options</h3>
       <table className="data-table">
@@ -75,15 +76,15 @@ pdf-extractor --help`}</code></pre>
       <h2>Usage Examples</h2>
 
       <h3>Simple Text Extraction</h3>
-      <pre><code>{`# Extract full text from single PDF
-pdf-extractor ./document.pdf --mode full_text --pretty`}</code></pre>
+      <Pre>{`# Extract full text from single PDF
+pdf-extractor ./document.pdf --mode full_text --pretty`}</Pre>
 
       <h3>Summary Extraction</h3>
-      <pre><code>{`# Get 3-5 sentence summary with disabled cache
-pdf-extractor ./document.pdf --mode summary --cache-mode disabled --pretty`}</code></pre>
+      <Pre>{`# Get 3-5 sentence summary with disabled cache
+pdf-extractor ./document.pdf --mode summary --cache-mode disabled --pretty`}</Pre>
 
       <h3>Structured Extraction</h3>
-      <pre><code>{`# Extract structured data with custom schema
+      <Pre>{`# Extract structured data with custom schema
 # First, define schema in my_schemas.py:
 # class InvoiceSchema(BaseModel):
 #     vendor_name: str | None
@@ -92,14 +93,14 @@ pdf-extractor ./document.pdf --mode summary --cache-mode disabled --pretty`}</co
 pdf-extractor ./invoice.pdf \\
   --mode structured \\
   --schema-import my_schemas:InvoiceSchema \\
-  --pretty`}</code></pre>
+  --pretty`}</Pre>
 
       <h3>Markdown Extraction</h3>
-      <pre><code>{`# Extract as Markdown
-pdf-extractor ./document.pdf --mode markdown --cache-mode persistent --pretty`}</code></pre>
+      <Pre>{`# Extract as Markdown
+pdf-extractor ./document.pdf --mode markdown --cache-mode persistent --pretty`}</Pre>
 
       <h3>Batch Processing</h3>
-      <pre><code>{`# Process multiple PDFs with 2 workers
+      <Pre>{`# Process multiple PDFs with 2 workers
 pdf-extractor ./docs/a.pdf ./docs/b.pdf ./docs/c.pdf \\
   --mode summary \\
   --max-workers 2 \\
@@ -108,23 +109,23 @@ pdf-extractor ./docs/a.pdf ./docs/b.pdf ./docs/c.pdf \\
 # Fail fast on first error
 pdf-extractor ./docs/*.pdf \\
   --mode full_text \\
-  --stop-on-error`}</code></pre>
+  --stop-on-error`}</Pre>
 
       <h3>High Quality Conversion</h3>
-      <pre><code>{`# Higher DPI for better OCR accuracy
+      <Pre>{`# Higher DPI for better OCR accuracy
 pdf-extractor ./scan.pdf \\
   --mode full_text \\
   --dpi 300 \\
   --max-pages 10 \\
-  --pretty`}</code></pre>
+  --pretty`}</Pre>
 
       <h2>Schema Import Format</h2>
       <p>
         The <code>--schema-import</code> option uses Python module notation:
       </p>
-      <pre><code>{`# Format: module.submodule:ClassName
+      <Pre>{`# Format: module.submodule:ClassName
 --schema-import my_package.schemas:InvoiceSchema
---schema-import invoice_extractor.models:ReceiptModel`}</code></pre>
+--schema-import invoice_extractor.models:ReceiptModel`}</Pre>
 
       <h2>Exit Codes</h2>
       <table className="data-table">
@@ -141,7 +142,7 @@ pdf-extractor ./scan.pdf \\
       <p>
         The CLI distinguishes between error types:
       </p>
-      <pre><code>{`try:
+      <Pre>{`try:
     # Process extraction
 except KeyboardInterrupt:
     return 130  # 128 + SIGINT(2)
@@ -151,20 +152,20 @@ except (ValueError, TypeError) as exc:
 except Exception as exc:
     sys.stderr.write(f"Error: {exc}\\n")
     sys.stderr.write(traceback.format_exc())
-    return 1`}</code></pre>
+    return 1`}</Pre>
 
       <h2>Programmatic Usage</h2>
       <p>
         The CLI can also be invoked programmatically:
       </p>
-      <pre><code>{`from pdf_extractor_analyzer.cli import main
+      <Pre>{`from pdf_extractor_analyzer.cli import main
 
 # Process files
 exit_code = main([
     "--mode", "summary",
     "--pretty",
     "./document.pdf"
-])`}</code></pre>
+])`}</Pre>
 
       <div className="info-box tip">
         <div className="info-box-title">💡 Environment Variables</div>

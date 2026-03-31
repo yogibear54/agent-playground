@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;600;700&family=Source+Code+Pro:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans:wght@300;400;500;600;700&family=Source+Code+Pro:wght@400;500;600&display=swap');
 
 :root {
   --primary: #2563eb;
@@ -40,7 +40,7 @@ html {
 }
 
 body {
-  font-family: 'Roboto', sans-serif;
+  font-family: 'Noto Sans', sans-serif;
   background: var(--bg-secondary);
   color: var(--text-primary);
   line-height: 1.6;
@@ -694,37 +694,7 @@ code, pre {
   line-height: 1.6;
   padding: 16px;
   margin: 0;
-  background: var(--code-bg);
-  color: var(--code-text);
   white-space: pre;
-}
-
-.code-content .comment {
-  color: #6b7280;
-}
-
-.code-content .keyword {
-  color: #f472b6;
-}
-
-.code-content .string {
-  color: #a5f3fc;
-}
-
-.code-content .function {
-  color: #c4b5fd;
-}
-
-.code-content .class {
-  color: #fcd34d;
-}
-
-.code-content .number {
-  color: #fca5a5;
-}
-
-.code-content .decorator {
-  color: #fbbf24;
 }
 
 .code-explanation {

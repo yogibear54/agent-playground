@@ -1,4 +1,5 @@
 import type { ChapterData } from './types';
+import Pre from '../components/Pre';
 
 export const analyzerContent: ChapterData = {
   id: 'analyzer',
@@ -18,7 +19,7 @@ export const analyzerContent: ChapterData = {
       </p>
 
       <h3>Initialization</h3>
-      <pre><code>{`def __init__(self, config: ExtractorConfig):
+      <Pre>{`def __init__(self, config: ExtractorConfig):
     self.config = config
     if config.replicate_api_token:
         self.client = replicate.Client(api_token=config.replicate_api_token)
@@ -27,7 +28,7 @@ export const analyzerContent: ChapterData = {
     
     # Setup logger with configured level
     self._logger = logging.getLogger(f"{__name__}.ReplicateVisionAnalyzer")
-    self._logger.setLevel(getattr(logging, config.log_level.upper()))`}</code></pre>
+    self._logger.setLevel(getattr(logging, config.log_level.upper()))`}</Pre>
 
       <h2>Core Methods</h2>
 
@@ -35,7 +36,7 @@ export const analyzerContent: ChapterData = {
       <p>
         The primary method for analyzing a single page image:
       </p>
-      <pre><code>{`def analyze_page(
+      <Pre>{`def analyze_page(
     self,
     *,
     image_bytes: bytes,
@@ -43,7 +44,7 @@ export const analyzerContent: ChapterData = {
     structured_schema: dict | None = None,
     correlation_id: str | None = None,
     page_number: int | None = None,
-) -> str | dict[str, Any]:`}</code></pre>
+) -> str | dict[str, Any]:`}</Pre>
 
       <h4>Processing Flow</h4>
       <ol>
@@ -72,14 +73,14 @@ export const analyzerContent: ChapterData = {
       <p>
         When structured mode output fails validation, this method attempts repair:
       </p>
-      <pre><code>{`def repair_structured_output(
+      <Pre>{`def repair_structured_output(
     self,
     candidate: dict,
     validation_error: str,
     structured_schema: dict | None,
     correlation_id: str | None = None,
 ) -> dict[str, Any]:
-    """Send invalid JSON back to LLM with error message for repair."""`}</code></pre>
+    """Send invalid JSON back to LLM with error message for repair."""`}</Pre>
 
       <h4>Repair Strategy</h4>
       <ol>
@@ -93,7 +94,7 @@ export const analyzerContent: ChapterData = {
       <p>
         The <code>_run_with_retries()</code> method implements exponential backoff:
       </p>
-      <pre><code>{`# Try primary model, then fallback
+      <Pre>{`# Try primary model, then fallback
 for model in [config.model, config.fallback_model]:
     for attempt in range(1, config.max_retries + 1):
         try:
@@ -103,7 +104,7 @@ for model in [config.model, config.fallback_model]:
                 break
             sleep(config.retry_backoff_seconds * (2 ** (attempt - 1)))
 
-raise AnalysisError("All models failed")`}</code></pre>
+raise AnalysisError("All models failed")`}</Pre>
 
       <h3>Retry Parameters</h3>
       <ul>
@@ -133,19 +134,19 @@ raise AnalysisError("All models failed")`}</code></pre>
       <p>
         Before API calls, images are validated:
       </p>
-      <pre><code>{`def _validate_image_bytes(self, image_bytes: bytes) -> None:
+      <Pre>{`def _validate_image_bytes(self, image_bytes: bytes) -> None:
     image_size = len(image_bytes)
     if image_size > self.config.max_image_bytes:
         raise ValidationError(
             f"Image size ({image_size} bytes) exceeds maximum "
             f"({self.config.max_image_bytes} bytes)"
-        )`}</code></pre>
+        )`}</Pre>
 
       <h2>Logging</h2>
       <p>
         Structured logging with correlation IDs for tracking:
       </p>
-      <pre><code>{`# Generate correlation ID for tracking related operations
+      <Pre>{`# Generate correlation ID for tracking related operations
 cid = str(uuid.uuid4())[:8]
 
 self._logger.info("Starting page analysis", extra={
@@ -153,7 +154,7 @@ self._logger.info("Starting page analysis", extra={
     "page_number": page_number,
     "mode": mode.value,
     "model": self.config.model,
-})`}</code></pre>
+})`}</Pre>
     </>
   ),
   quiz: [

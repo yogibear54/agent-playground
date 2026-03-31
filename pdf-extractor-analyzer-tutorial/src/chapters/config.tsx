@@ -1,4 +1,5 @@
 import type { ChapterData } from './types';
+import Pre from '../components/Pre';
 
 export const configContent: ChapterData = {
   id: 'config',
@@ -106,7 +107,7 @@ export const configContent: ChapterData = {
       </div>
 
       <h2>Usage Examples</h2>
-      <pre><code>{`# Default configuration
+      <Pre>{`# Default configuration
 from pdf_extractor_analyzer import PDFExtractor
 
 extractor = PDFExtractor()
@@ -121,7 +122,7 @@ config = ExtractorConfig(
     max_page_limit=10
 )
 config.validate()  # Explicit validation
-extractor = PDFExtractor(config)`}</code></pre>
+extractor = PDFExtractor(config)`}</Pre>
     </>
   ),
   quiz: [

@@ -1,4 +1,5 @@
 import type { ChapterData } from './types';
+import Pre from '../components/Pre';
 
 export const schemasContent: ChapterData = {
   id: 'schemas',
@@ -16,11 +17,11 @@ export const schemasContent: ChapterData = {
       <p>
         Defines the available extraction modes:
       </p>
-      <pre><code>{`class ExtractionMode(str, Enum):
+      <Pre>{`class ExtractionMode(str, Enum):
     FULL_TEXT = "full_text"
     STRUCTURED = "structured"
     SUMMARY = "summary"
-    MARKDOWN = "markdown"`}</code></pre>
+    MARKDOWN = "markdown"`}</Pre>
 
       <h3>Mode Descriptions</h3>
       <table className="data-table">
@@ -34,10 +35,10 @@ export const schemasContent: ChapterData = {
       </table>
 
       <h2>ExtractionResult Model</h2>
-      <pre><code>{`class ExtractionResult(BaseModel):
+      <Pre>{`class ExtractionResult(BaseModel):
     extraction_mode: ExtractionMode
     content: str | dict[str, Any]
-    metadata: dict[str, Any] = Field(default_factory=dict)`}</code></pre>
+    metadata: dict[str, Any] = Field(default_factory=dict)`}</Pre>
 
       <h3>Metadata Fields</h3>
       <p>
@@ -54,22 +55,22 @@ export const schemasContent: ChapterData = {
       </ul>
 
       <h2>BatchItemStatus Enum</h2>
-      <pre><code>{`class BatchItemStatus(str, Enum):
+      <Pre>{`class BatchItemStatus(str, Enum):
     SUCCESS = "success"
-    ERROR = "error"`}</code></pre>
+    ERROR = "error"`}</Pre>
 
       <h2>BatchExtractionItem Model</h2>
       <p>
         Represents a single result in batch processing:
       </p>
-      <pre><code>{`class BatchExtractionItem(BaseModel):
+      <Pre>{`class BatchExtractionItem(BaseModel):
     pdf_path: str
     status: BatchItemStatus
     result: ExtractionResult | None = None
-    error: str | None = None`}</code></pre>
+    error: str | None = None`}</Pre>
 
       <h3>Usage in extract_many()</h3>
-      <pre><code>{`results = extractor.extract_many(
+      <Pre>{`results = extractor.extract_many(
     ["a.pdf", "b.pdf"],
     mode=ExtractionMode.SUMMARY
 )
@@ -78,13 +79,13 @@ for item in results:
     if item.status == BatchItemStatus.SUCCESS:
         print(f"Success: {item.result.content}")
     else:
-        print(f"Error: {item.error}")`}</code></pre>
+        print(f"Error: {item.error}")`}</Pre>
 
       <h2>Custom Schemas for Structured Mode</h2>
       <p>
         Users can define their own Pydantic models for structured extraction:
       </p>
-      <pre><code>{`from pydantic import BaseModel
+      <Pre>{`from pydantic import BaseModel
 from typing import List
 
 class LineItem(BaseModel):
@@ -108,7 +109,7 @@ result = extractor.extract(
 )
 
 # Output is validated against schema
-print(result.content["vendor_name"])  # Type-safe access`}</code></pre>
+print(result.content["vendor_name"])  # Type-safe access`}</Pre>
 
       <h2>Schema Validation Flow</h2>
       <ol>
@@ -136,13 +137,13 @@ print(result.content["vendor_name"])  # Type-safe access`}</code></pre>
       </ul>
 
       <h2>Module Exports</h2>
-      <pre><code>{`# Public exports from __init__.py
+      <Pre>{`# Public exports from __init__.py
 from .schemas import (
     ExtractionMode,
     ExtractionResult,
     BatchItemStatus,
     BatchExtractionItem,
-)`}</code></pre>
+)`}</Pre>
     </>
   ),
   quiz: [

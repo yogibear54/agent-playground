@@ -1,4 +1,5 @@
 import type { ChapterData } from './types';
+import Pre from '../components/Pre';
 
 export const architectureContent: ChapterData = {
   id: 'architecture',
@@ -106,14 +107,14 @@ export const architectureContent: ChapterData = {
       <p>
         Installed as <code>pdf-extractor</code> via the <code>pyproject.toml</code> entry point:
       </p>
-      <pre><code>pdf-extractor ./document.pdf --mode full_text --pretty</code></pre>
+      <Pre lang="bash">pdf-extractor ./document.pdf --mode full_text --pretty</Pre>
 
       <h3>Python Library</h3>
       <p>Import directly in your Python code:</p>
-      <pre><code>{`from pdf_extractor_analyzer import PDFExtractor, ExtractorConfig
+      <Pre>{`from pdf_extractor_analyzer import PDFExtractor, ExtractorConfig
 
 extractor = PDFExtractor(ExtractorConfig())
-result = extractor.extract("document.pdf", mode=ExtractionMode.SUMMARY)`}</code></pre>
+result = extractor.extract("document.pdf", mode=ExtractionMode.SUMMARY)`}</Pre>
 
       <h2>Summary</h2>
       <p>

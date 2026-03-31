@@ -1,4 +1,5 @@
 import type { ChapterData } from './types';
+import Pre from '../components/Pre';
 
 export const exceptionsContent: ChapterData = {
   id: 'exceptions',
@@ -13,8 +14,8 @@ export const exceptionsContent: ChapterData = {
       </p>
 
       <h2>Base Exception</h2>
-      <pre><code>{`class PDFExtractorError(Exception):
-    """Base exception for the package."""`}</code></pre>
+      <Pre>{`class PDFExtractorError(Exception):
+    """Base exception for the package."""`}</Pre>
       <p>
         All custom exceptions inherit from <code>PDFExtractorError</code>, making it easy to catch all package-specific errors.
       </p>
@@ -22,8 +23,8 @@ export const exceptionsContent: ChapterData = {
       <h2>Exception Types</h2>
 
       <h3>CacheError</h3>
-      <pre><code>{`class CacheError(PDFExtractorError):
-    """Raised when cache operations fail."""`}</code></pre>
+      <Pre>{`class CacheError(PDFExtractorError):
+    """Raised when cache operations fail."""`}</Pre>
       <p>
         Thrown for cache read/write failures, invalid metadata, or TTL-related issues.
       </p>
@@ -35,8 +36,8 @@ export const exceptionsContent: ChapterData = {
       </ul>
 
       <h3>ConversionError</h3>
-      <pre><code>{`class ConversionError(PDFExtractorError):
-    """Raised when PDF conversion fails."""`}</code></pre>
+      <Pre>{`class ConversionError(PDFExtractorError):
+    """Raised when PDF conversion fails."""`}</Pre>
       <p>
         Thrown when PDF processing fails in the converter module.
       </p>
@@ -49,8 +50,8 @@ export const exceptionsContent: ChapterData = {
       </ul>
 
       <h3>AnalysisError</h3>
-      <pre><code>{`class AnalysisError(PDFExtractorError):
-    """Raised when model analysis fails."""`}</code></pre>
+      <Pre>{`class AnalysisError(PDFExtractorError):
+    """Raised when model analysis fails."""`}</Pre>
       <p>
         Thrown when the LLM API call fails after all retries.
       </p>
@@ -63,20 +64,20 @@ export const exceptionsContent: ChapterData = {
       </ul>
 
       <h3>SchemaValidationError</h3>
-      <pre><code>{`class SchemaValidationError(PDFExtractorError):
-    """Raised when structured output cannot be validated."""`}</code></pre>
+      <Pre>{`class SchemaValidationError(PDFExtractorError):
+    """Raised when structured output cannot be validated."""`}</Pre>
       <p>
         Thrown when structured extraction output fails validation after repair attempts.
       </p>
 
       <h3>ValidationError</h3>
-      <pre><code>{`class ValidationError(PDFExtractorError):
+      <Pre>{`class ValidationError(PDFExtractorError):
     """Raised when input validation fails."""
     
     def __init__(self, message: str, *, field: str | None = None, value: object = None):
         super().__init__(message)
         self.field = field
-        self.value = value`}</code></pre>
+        self.value = value`}</Pre>
       <p>
         The most detailed exception, carrying field and value information for debugging.
       </p>
@@ -93,7 +94,7 @@ export const exceptionsContent: ChapterData = {
       <h2>Error Handling Strategies</h2>
 
       <h3>Path Validation</h3>
-      <pre><code>{`def _validate_pdf_path(self, path: Path) -> None:
+      <Pre>{`def _validate_pdf_path(self, path: Path) -> None:
     # Path traversal check
     try:
         resolved = path.resolve()
@@ -114,18 +115,18 @@ export const exceptionsContent: ChapterData = {
                 f"File does not appear to be a valid PDF: {path}",
                 field="pdf_path",
                 value=str(path)
-            )`}</code></pre>
+            )`}</Pre>
 
       <h3>API Retry Handling</h3>
-      <pre><code>{`try:
+      <Pre>{`try:
     output = self._run_with_retries(model, image_bytes)
     return self._extract_json_object(output)
 except AnalysisError:
     logger.error("Page analysis failed after all retries")
-    raise`}</code></pre>
+    raise`}</Pre>
 
       <h3>Batch Error Handling</h3>
-      <pre><code>{`# In extract_many()
+      <Pre>{`# In extract_many()
 for future in as_completed(futures):
     try:
         result = future.result()
@@ -141,7 +142,7 @@ for future in as_completed(futures):
             pdf_path=str(path),
             status=BatchItemStatus.ERROR,
             error=str(exc),
-        )`}</code></pre>
+        )`}</Pre>
 
       <div className="info-box success">
         <div className="info-box-title">✓ Error Recovery</div>
@@ -154,7 +155,7 @@ for future in as_completed(futures):
       <p>
         All exceptions are logged with context:
       </p>
-      <pre><code>{`logger.error(
+      <Pre>{`logger.error(
     f"All {len(candidate_models)} models failed after retries",
     extra={
         "correlation_id": cid,
@@ -162,10 +163,10 @@ for future in as_completed(futures):
         "attempts": self.config.max_retries,
         "last_error": str(last_error)[:200],
     },
-)`}</code></pre>
+)`}</Pre>
 
       <h2>Usage Examples</h2>
-      <pre><code>{`from pdf_extractor_analyzer import PDFExtractor
+      <Pre>{`from pdf_extractor_analyzer import PDFExtractor
 from pdf_extractor_analyzer.exceptions import (
     PDFExtractorError, ValidationError, ConversionError
 )
@@ -182,7 +183,7 @@ except ConversionError as e:
 except AnalysisError as e:
     print(f"LLM analysis failed: {e}")
 except PDFExtractorError as e:
-    print(f"General error: {e}")`}</code></pre>
+    print(f"General error: {e}")`}</Pre>
     </>
   ),
   diagram: 'class-hierarchy',

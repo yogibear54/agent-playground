@@ -1,4 +1,5 @@
 import type { ChapterData } from './types';
+import Pre from '../components/Pre';
 
 export const converterContent: ChapterData = {
   id: 'converter',
@@ -22,13 +23,13 @@ export const converterContent: ChapterData = {
       <p>
         The module defines a frozen dataclass for page data:
       </p>
-      <pre><code>{`@dataclass(slots=True)
+      <Pre>{`@dataclass(slots=True)
 class PageImage:
     page_number: int      # 1-indexed
     width: int            # Pixels
     height: int           # Pixels
     image_bytes: bytes    # Raw PNG data
-    image_path: Path | None  # File path (if cached)`}</code></pre>
+    image_path: Path | None  # File path (if cached)`}</Pre>
 
       <h2>PDFConverter Class</h2>
 
@@ -59,12 +60,12 @@ class PageImage:
       <p>
         Loads previously cached page images from a directory. This is used when cache hits occur.
       </p>
-      <pre><code>{`def load_from_dir(self, cache_dir: Path) -> list[PageImage]:
+      <Pre>{`def load_from_dir(self, cache_dir: Path) -> list[PageImage]:
     """Load images from cache directory.
     
     Expects files named page_001.png, page_002.png, etc.
     Returns list of PageImage dataclasses with bytes.
-    """`}</code></pre>
+    """`}</Pre>
 
       <h2>Error Handling</h2>
       <p>
@@ -102,7 +103,7 @@ class PageImage:
       </p>
 
       <h2>Example Usage</h2>
-      <pre><code>{`from pdf_extractor_analyzer.converter import PDFConverter
+      <Pre>{`from pdf_extractor_analyzer.converter import PDFConverter
 from pathlib import Path
 
 converter = PDFConverter()
@@ -114,7 +115,7 @@ pages = converter.convert(
 
 for page in pages:
     print(f"Page {page.page_number}: {page.width}x{page.height}")
-    # page.image_bytes contains PNG data`}</code></pre>
+    # page.image_bytes contains PNG data`}</Pre>
     </>
   ),
   diagram: 'cache-flow',

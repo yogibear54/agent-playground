@@ -1,4 +1,5 @@
 import type { ChapterData } from './types';
+import Pre from '../components/Pre';
 
 export const pipelineContent: ChapterData = {
   id: 'pipeline',
@@ -13,7 +14,7 @@ export const pipelineContent: ChapterData = {
       </p>
 
       <h2>Initialization</h2>
-      <pre><code>{`class PDFExtractor:
+      <Pre>{`class PDFExtractor:
     def __init__(self, config: ExtractorConfig | None = None):
         self.config = config or ExtractorConfig()
         self.config.validate()
@@ -24,7 +25,7 @@ export const pipelineContent: ChapterData = {
             mode=self.config.cache_mode,
             ttl_days=self.config.cache_ttl_days,
         )
-        self.analyzer = ReplicateVisionAnalyzer(self.config)`}</code></pre>
+        self.analyzer = ReplicateVisionAnalyzer(self.config)`}</Pre>
 
       <h2>Single Extraction: extract()</h2>
       <p>
@@ -65,12 +66,12 @@ export const pipelineContent: ChapterData = {
       <p>
         Content cache is invalidated when extraction parameters change:
       </p>
-      <pre><code>{`extraction_params = {
+      <Pre>{`extraction_params = {
     "mode": mode.value,
     "model": self.config.model,
     "max_pages": self.config.max_pages,
     "schema": schema.model_json_schema() if schema else None,
-}`}</code></pre>
+}`}</Pre>
 
       <h2>Batch Extraction: extract_many()</h2>
       <p>
@@ -87,20 +88,20 @@ export const pipelineContent: ChapterData = {
       </ul>
 
       <h3>Thread Safety</h3>
-      <pre><code>{`def _run_single_batch_item(self, path, mode, schema):
+      <Pre>{`def _run_single_batch_item(self, path, mode, schema):
     # Create per-thread worker
     worker = PDFExtractor.__new__(PDFExtractor)
     worker.config = self.config
     worker.analyzer = self.analyzer  # Shared (API calls are independent)
     worker.converter = PDFConverter()  # New instance per worker
     worker.cache = CacheManager(...)  # New instance per worker
-    return worker.extract(path, mode=mode, schema=schema)`}</code></pre>
+    return worker.extract(path, mode=mode, schema=schema)`}</Pre>
 
       <h3>Batch Result Structure</h3>
       <p>
         Returns a list of <code>BatchExtractionItem</code>:
       </p>
-      <pre><code>{`[
+      <Pre>{`[
   {
     "pdf_path": "/path/to/a.pdf",
     "status": "success",
@@ -113,7 +114,7 @@ export const pipelineContent: ChapterData = {
     "result": null,
     "error": "File not found"
   }
-]`}</code></pre>
+]`}</Pre>
 
       <h2>Output Aggregation</h2>
       <p>
@@ -143,7 +144,7 @@ export const pipelineContent: ChapterData = {
       </ul>
 
       <h2>Example Usage</h2>
-      <pre><code>{`from pdf_extractor_analyzer import PDFExtractor, ExtractorConfig, ExtractionMode
+      <Pre>{`from pdf_extractor_analyzer import PDFExtractor, ExtractorConfig, ExtractionMode
 
 # Single file extraction
 extractor = PDFExtractor()
@@ -166,7 +167,7 @@ for item in results:
     if item.status == "success":
         print(f"{item.pdf_path}: {len(item.result.content)} chars")
     else:
-        print(f"{item.pdf_path}: ERROR - {item.error}")`}</code></pre>
+        print(f"{item.pdf_path}: ERROR - {item.error}")`}</Pre>
     </>
   ),
   quiz: [

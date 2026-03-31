@@ -1,4 +1,5 @@
 import type { ChapterData } from './types';
+import Pre from '../components/Pre';
 
 export const cacheContent: ChapterData = {
   id: 'cache',
@@ -16,13 +17,13 @@ export const cacheContent: ChapterData = {
       <p>
         The <code>compute_content_hash()</code> function generates a SHA-256 hash of the PDF file content:
       </p>
-      <pre><code>{`def compute_content_hash(file_path: Path) -> str:
+      <Pre>{`def compute_content_hash(file_path: Path) -> str:
     """Compute SHA-256 hash of file content."""
     sha256 = hashlib.sha256()
     with file_path.open("rb") as f:
         for chunk in iter(lambda: f.read(8192), b""):
             sha256.update(chunk)
-    return sha256.hexdigest()`}</code></pre>
+    return sha256.hexdigest()`}</Pre>
 
       <h3>Why SHA-256?</h3>
       <ul>
@@ -32,7 +33,7 @@ export const cacheContent: ChapterData = {
       </ul>
 
       <h2>Cache Directory Structure</h2>
-      <pre><code>{`cache/
+      <Pre>{`cache/
 ├── 006e5150ea001c8c/    # Hash prefix (32 chars)
 │   ├── metadata.json    # Conversion metadata
 │   ├── content.json     # Extraction result
@@ -42,20 +43,20 @@ export const cacheContent: ChapterData = {
 ├── 8ed544d2dd9a8b29/
 │   └── ...
 └── a6648d29b77b0027/
-    └── ...`}</code></pre>
+    └── ...`}</Pre>
 
       <h2>CacheMetadata Dataclass</h2>
       <p>
         Stores conversion parameters for cache validation:
       </p>
-      <pre><code>{`@dataclass(slots=True)
+      <Pre>{`@dataclass(slots=True)
 class CacheMetadata:
     page_count: int           # Number of pages converted
     dpi: int                  # Resolution used
     created_at: str           # ISO timestamp
     source_hash: str          # Content hash
     max_pages: int | None     # Page limit if set
-    converter_version: str    # Version marker`}</code></pre>
+    converter_version: str    # Version marker`}</Pre>
 
       <h2>CacheManager Class</h2>
 
@@ -96,7 +97,7 @@ class CacheMetadata:
       <p>
         The <code>cleanup_expired()</code> method removes stale cache entries:
       </p>
-      <pre><code>{`def cleanup_expired(self) -> int:
+      <Pre>{`def cleanup_expired(self) -> int:
     """Remove caches older than TTL."""
     cutoff = datetime.now(UTC) - timedelta(days=self.ttl_days)
     for entry in base_cache_dir.iterdir():
@@ -104,7 +105,7 @@ class CacheMetadata:
         if created_at < cutoff:
             rmtree(entry)
             removed += 1
-    return removed`}</code></pre>
+    return removed`}</Pre>
 
       <div className="info-box tip">
         <div className="info-box-title">💡 Cache Invalidation</div>
@@ -119,7 +120,7 @@ class CacheMetadata:
       </p>
 
       <h2>Usage Examples</h2>
-      <pre><code>{`from pdf_extractor_analyzer.cache import CacheManager, CacheMode
+      <Pre>{`from pdf_extractor_analyzer.cache import CacheManager, CacheMode
 from pathlib import Path
 
 # Persistent cache
@@ -139,7 +140,7 @@ if cache.is_cache_hit(work_dir, source_hash=hash, dpi=150, max_pages=None):
     pages = converter.load_from_dir(work_dir)
 
 # Clean old caches
-removed = cache.cleanup_expired()`}</code></pre>
+removed = cache.cleanup_expired()`}</Pre>
     </>
   ),
   quiz: [

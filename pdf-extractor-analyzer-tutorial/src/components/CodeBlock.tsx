@@ -1,3 +1,5 @@
+import { Highlight, themes } from 'prism-react-renderer';
+
 interface CodeBlockProps {
   code: string;
   language: string;
@@ -5,45 +7,21 @@ interface CodeBlockProps {
   explanation?: string;
 }
 
-function CodeBlock({ code, language, title, explanation }: CodeBlockProps) {
-  // Simple syntax highlighting for Python
-  const highlightPython = (code: string): string => {
-    const keywords = [
-      'from', 'import', 'class', 'def', 'return', 'if', 'else', 'elif', 'for', 'while',
-      'try', 'except', 'finally', 'with', 'as', 'yield', 'lambda', 'pass', 'raise',
-      'in', 'not', 'and', 'or', 'is', 'None', 'True', 'False', 'self', 'async', 'await',
-      'type', 'str', 'int', 'float', 'bool', 'list', 'dict', 'set', 'tuple', 'Any',
-    ];
-    const decorators = ['dataclass', 'property', 'staticmethod', 'classmethod'];
-    
-    let highlighted = code
-      // Escape HTML
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      // Comments
-      .replace(/(#.*)$/gm, '<span class="comment">$1</span>')
-      // Strings (single quotes)
-      .replace(/(['"])((?:\\.|[^'\\])*?)\1/g, '<span class="string">$1$2$1</span>')
-      // Decorators
-      .replace(new RegExp(`(@(${decorators.join('|')}))\\b`, 'g'), '<span class="decorator">$1</span>')
-      // Keywords
-      .replace(new RegExp(`\\b(${keywords.join('|')})\\b`, 'g'), '<span class="keyword">$1</span>')
-      // Class names (Capitalized words)
-      .replace(/\b([A-Z][a-zA-Z0-9]*)\b/g, '<span class="class">$1</span>')
-      // Numbers
-      .replace(/\b(\d+(?:\.\d+)?)\b/g, '<span class="number">$1</span>');
-    
-    return highlighted;
+// Map our language labels to prism-react-renderer language identifiers
+const getLanguage = (lang: string): string => {
+  const map: Record<string, string> = {
+    py: 'python',
+    ts: 'typescript',
+    js: 'javascript',
+    yml: 'yaml',
+    sh: 'bash',
+    shell: 'bash',
   };
+  return map[lang.toLowerCase()] || lang.toLowerCase();
+};
 
-  const highlightCode = (code: string, lang: string): string => {
-    if (lang === 'python' || lang === 'py') {
-      return highlightPython(code);
-    }
-    // Return plain code for other languages
-    return code.replace(/</g, '&lt;').replace(/>/g, '&gt;');
-  };
+function CodeBlock({ code, language, title, explanation }: CodeBlockProps) {
+  const lang = getLanguage(language);
 
   return (
     <div className="code-block">
@@ -52,9 +30,29 @@ function CodeBlock({ code, language, title, explanation }: CodeBlockProps) {
         <span className="code-lang">{language}</span>
       </div>
       <div className="code-wrapper">
-        <pre className="code-content">
-          <code dangerouslySetInnerHTML={{ __html: highlightCode(code, language) }} />
-        </pre>
+        <Highlight theme={themes.vsLight} code={code.trim()} language={lang}>
+          {({ style, tokens, getLineProps, getTokenProps }) => (
+            <pre
+              className="code-content"
+              style={{
+                ...style,
+                backgroundColor: '#ffffff',
+                color: '#393a34',
+              }}
+            >
+              {tokens.map((line, i) => {
+                const lineProps = getLineProps({ line, key: i });
+                return (
+                  <div key={i} {...lineProps}>
+                    {line.map((token, key) => (
+                      <span key={key} {...getTokenProps({ token, key })} />
+                    ))}
+                  </div>
+                );
+              })}
+            </pre>
+          )}
+        </Highlight>
       </div>
       {explanation && (
         <div className="code-explanation">

@@ -1,0 +1,112 @@
+{
+  "version": 1,
+  "sourceDir": "/home/yogibear54/Projects/lotus-creations.com/_PROJECTS/agent-playground/sample-openclaw-agent-php",
+  "chapters": [
+    {
+      "id": "architecture-overview",
+      "title": "Architecture Overview",
+      "sourceFiles": [
+        {
+          "path": "src/AgentDaemon.php",
+          "hash": "3cf8ca062d27969dac1fb3ca73325e8a88c622123eed846147a97cfc64019ab4"
+        },
+        {
+          "path": "bin/agent.php",
+          "hash": "55d3cf023ee430a5081a0458a70d4f0f522b0b890a9563d132496e034b23de32"
+        },
+        {
+          "path": "index.ts",
+          "hash": "b672da8a00a15a539e675f937bf36cfce330be6d1c51107b9c9ffeff141ddba1"
+        },
+        {
+          "path": "README.md",
+          "hash": "054716ec41dc5f8eb2020f624104dd61c94e8e5fd2b13b21f33de573722dbfc5"
+        },
+        {
+          "path": "composer.json",
+          "hash": "604eb2b0f98f2c208d7379f816a7b873a400704c9d8a54341916df955b0871f3"
+        }
+      ]
+    },
+    {
+      "id": "key-modules",
+      "title": "Key Modules and Their Purposes",
+      "sourceFiles": [
+        {
+          "path": "src/AgentDaemon.php",
+          "hash": "3cf8ca062d27969dac1fb3ca73325e8a88c622123eed846147a97cfc64019ab4"
+        },
+        {
+          "path": "bin/agent.php",
+          "hash": "55d3cf023ee430a5081a0458a70d4f0f522b0b890a9563d132496e034b23de32"
+        },
+        {
+          "path": "index.ts",
+          "hash": "b672da8a00a15a539e675f937bf36cfce330be6d1c51107b9c9ffeff141ddba1"
+        },
+        {
+          "path": "composer.json",
+          "hash": "604eb2b0f98f2c208d7379f816a7b873a400704c9d8a54341916df955b0871f3"
+        }
+      ]
+    },
+    {
+      "id": "data-flow",
+      "title": "Data Flow: Slack Event to Agent Reply",
+      "sourceFiles": [
+        {
+          "path": "src/AgentDaemon.php",
+          "hash": "3cf8ca062d27969dac1fb3ca73325e8a88c622123eed846147a97cfc64019ab4"
+        },
+        {
+          "path": "index.ts",
+          "hash": "b672da8a00a15a539e675f937bf36cfce330be6d1c51107b9c9ffeff141ddba1"
+        },
+        {
+          "path": "README.md",
+          "hash": "054716ec41dc5f8eb2020f624104dd61c94e8e5fd2b13b21f33de573722dbfc5"
+        }
+      ]
+    },
+    {
+      "id": "typescript-patterns",
+      "title": "TypeScript Patterns in the Reference Port",
+      "sourceFiles": [
+        {
+          "path": "index.ts",
+          "hash": "b672da8a00a15a539e675f937bf36cfce330be6d1c51107b9c9ffeff141ddba1"
+        },
+        {
+          "path": "src/AgentDaemon.php",
+          "hash": "3cf8ca062d27969dac1fb3ca73325e8a88c622123eed846147a97cfc64019ab4"
+        }
+      ]
+    },
+    {
+      "id": "entry-points-config",
+      "title": "Entry Points and Configuration",
+      "sourceFiles": [
+        {
+          "path": "bin/agent.php",
+          "hash": "55d3cf023ee430a5081a0458a70d4f0f522b0b890a9563d132496e034b23de32"
+        },
+        {
+          "path": "composer.json",
+          "hash": "604eb2b0f98f2c208d7379f816a7b873a400704c9d8a54341916df955b0871f3"
+        },
+        {
+          "path": ".env.example",
+          "hash": "0e92a89bf382f82e953e842ba5bd2c0949130c0f846d3179be206aa45c1222f9"
+        },
+        {
+          "path": "README.md",
+          "hash": "054716ec41dc5f8eb2020f624104dd61c94e8e5fd2b13b21f33de573722dbfc5"
+        },
+        {
+          "path": "src/AgentDaemon.php",
+          "hash": "3cf8ca062d27969dac1fb3ca73325e8a88c622123eed846147a97cfc64019ab4"
+        }
+      ]
+    }
+  ]
+}

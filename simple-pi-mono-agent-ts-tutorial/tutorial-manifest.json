@@ -1,0 +1,61 @@
+{
+  "version": 1,
+  "sourceDir": "../simple-pi-mono-agent-ts",
+  "chapters": [
+    {
+      "id": "architecture-overview",
+      "title": "Architecture Overview",
+      "files": [
+        { "path": "src/index.ts", "hash": "f22a9d7b3b13782383e89aa05fd0c8f36bf1f10b036e61904fd791ae4a639792" },
+        { "path": "package.json", "hash": "99f633c328b9540efbb0881c4807cddcf17de0548b8588c8fc94c77bce444c40" },
+        { "path": "tsconfig.json", "hash": "fe89ccc5a14ddd0397dd8371fe674bd0e92d190f96522a05235a899e9d6be5df" }
+      ]
+    },
+    {
+      "id": "entry-points-config",
+      "title": "Entry Points & Configuration",
+      "files": [
+        { "path": "package.json", "hash": "99f633c328b9540efbb0881c4807cddcf17de0548b8588c8fc94c77bce444c40" },
+        { "path": "tsconfig.json", "hash": "fe89ccc5a14ddd0397dd8371fe674bd0e92d190f96522a05235a899e9d6be5df" },
+        { "path": ".env.example", "hash": "dec8eb992a9858e216918fb4a70c5fce99210366feef8802b920e8fb0d6fb5e4" },
+        { "path": "src/index.ts", "hash": "f22a9d7b3b13782383e89aa05fd0c8f36bf1f10b036e61904fd791ae4a639792" }
+      ]
+    },
+    {
+      "id": "number-extraction-utilities",
+      "title": "Number Extraction Utilities",
+      "files": [
+        { "path": "src/index.ts", "hash": "f22a9d7b3b13782383e89aa05fd0c8f36bf1f10b036e61904fd791ae4a639792" }
+      ]
+    },
+    {
+      "id": "agent-tool-definition",
+      "title": "Agent Tool Definition",
+      "files": [
+        { "path": "src/index.ts", "hash": "f22a9d7b3b13782383e89aa05fd0c8f36bf1f10b036e61904fd791ae4a639792" }
+      ]
+    },
+    {
+      "id": "agent-lifecycle-events",
+      "title": "Agent Lifecycle & Events",
+      "files": [
+        { "path": "src/index.ts", "hash": "f22a9d7b3b13782383e89aa05fd0c8f36bf1f10b036e61904fd791ae4a639792" }
+      ]
+    },
+    {
+      "id": "end-to-end-data-flow",
+      "title": "End-to-End Data Flow",
+      "files": [
+        { "path": "src/index.ts", "hash": "f22a9d7b3b13782383e89aa05fd0c8f36bf1f10b036e61904fd791ae4a639792" }
+      ]
+    },
+    {
+      "id": "typescript-patterns",
+      "title": "TypeScript Patterns",
+      "files": [
+        { "path": "src/index.ts", "hash": "f22a9d7b3b13782383e89aa05fd0c8f36bf1f10b036e61904fd791ae4a639792" },
+        { "path": "tsconfig.json", "hash": "fe89ccc5a14ddd0397dd8371fe674bd0e92d190f96522a05235a899e9d6be5df" }
+      ]
+    }
+  ]
+}

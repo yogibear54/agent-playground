@@ -17,7 +17,6 @@ from .schemas import ExtractionMode
 # Module-level logger
 logger = logging.getLogger(__name__)
 
-
 def _format_last_error(exc: BaseException | None) -> str:
     if exc is None:
         return "unknown error"
@@ -37,9 +36,12 @@ class ReplicateVisionAnalyzer:
 
         self.async_client = self._build_async_client()
 
-        # Serialize sync client.run when used from async (to_thread). Parallel uploads of large
-        # image payloads share bandwidth and hit httpx WriteTimeout; sync extract is sequential.
-        self._sync_replicate_lock = asyncio.Lock()
+        # Limit sync client.run when used from async (to_thread).
+        # Parallel uploads of large image payloads share bandwidth and have previously hit
+        # httpx WriteTimeout; default is 1 to keep the upload path safe.
+        self._sync_replicate_semaphore = asyncio.Semaphore(
+            config.max_concurrent_replicate_calls
+        )
 
         # Setup logger with configured level
         self._logger = logging.getLogger(f"{__name__}.ReplicateVisionAnalyzer")
@@ -533,7 +535,7 @@ class ReplicateVisionAnalyzer:
             except TypeError:
                 return self.client.run(model, input=input_payload)
 
-        async with self._sync_replicate_lock:
+        async with self._sync_replicate_semaphore:
             return await asyncio.to_thread(_sync_run)
 
     def _build_input_payload(self, *, prompt: str, image_bytes: bytes | None) -> dict[str, Any]:

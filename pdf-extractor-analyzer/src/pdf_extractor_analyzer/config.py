@@ -30,6 +30,9 @@ class ExtractorConfig:
     # Async processing controls
     max_concurrent_pages: int = 4
     async_requests_per_second: float = 8.0
+    # Limits concurrent sync Replicate submissions when we cannot use AsyncReplicate.
+    # This controls how many `client.run(...)` calls may be in-flight at once.
+    max_concurrent_replicate_calls: int = 1
 
     # Input validation limits
     image_max_long_edge: int | None = None
@@ -63,6 +66,8 @@ class ExtractorConfig:
             raise ValueError("max_concurrent_pages must be > 0")
         if self.async_requests_per_second <= 0:
             raise ValueError("async_requests_per_second must be > 0")
+        if self.max_concurrent_replicate_calls <= 0:
+            raise ValueError("max_concurrent_replicate_calls must be > 0")
         if self.image_max_long_edge is not None and self.image_max_long_edge <= 0:
             raise ValueError("image_max_long_edge must be > 0 or None")
         if self.max_image_width <= 0:

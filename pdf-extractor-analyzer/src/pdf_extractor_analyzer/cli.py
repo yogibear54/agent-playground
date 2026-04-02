@@ -63,6 +63,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="Per-document async page concurrency limit",
     )
     parser.add_argument(
+        "--max-concurrent-replicate-calls",
+        type=int,
+        default=1,
+        help="Max concurrent Replicate submissions when using sync run (default 1)",
+    )
+    parser.add_argument(
         "--async-rps",
         type=float,
         default=8.0,
@@ -110,6 +116,7 @@ def main(argv: list[str] | None = None) -> int:
             fallback_model=args.fallback_model,
             max_pages=args.max_pages,
             max_concurrent_pages=args.max_concurrent_pages,
+            max_concurrent_replicate_calls=args.max_concurrent_replicate_calls,
             async_requests_per_second=args.async_rps,
         )
 

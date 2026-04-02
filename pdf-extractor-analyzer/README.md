@@ -5,7 +5,7 @@ Image-first PDF extraction and analysis for mixed or unknown PDF formats.
 ## Features
 
 - PDF -> page images via PyMuPDF
-- Vision analysis via Replicate-hosted models (default `openai/gpt-4o`)
+- Vision analysis via pluggable LLM provider adapters (default provider: `replicate`)
 - Modes: `full_text`, `summary`, `structured`, `markdown`
 - Structured mode with user-provided Pydantic schema classes
 - Markdown mode outputs both `content.json` and `content.md` with LLM-generated Markdown
@@ -19,17 +19,23 @@ Image-first PDF extraction and analysis for mixed or unknown PDF formats.
 python3 -m venv .venv
 source .venv/bin/activate
 pip install --upgrade pip
-pip install -e .
+```
+
+Install with Replicate provider support:
+
+```bash
+pip install -e ".[replicate]"
 ```
 
 For development/tests:
 
 ```bash
-pip install -e ".[dev]"
+pip install -e ".[dev,replicate]"
 ```
 
-## Replicate API Token
+## Provider Authentication
 
+### Replicate
 Set token with environment variable (recommended):
 
 ```bash
@@ -39,9 +45,36 @@ export REPLICATE_API_TOKEN=your_token
 Or pass directly in code:
 
 ```python
-from pdf_extractor_analyzer import ExtractorConfig
+from pdf_extractor_analyzer import ExtractorConfig, ReplicateProviderConfig
 
+config = ExtractorConfig(
+    provider="replicate",
+    replicate=ReplicateProviderConfig(api_token="your_token"),
+)
+```
+
+Legacy compatibility is preserved:
+
+```python
 config = ExtractorConfig(replicate_api_token="your_token")
+```
+
+### OpenRouter
+Set API key with environment variable:
+
+```bash
+export OPENROUTER_API_KEY=your_key
+```
+
+Or pass directly in code:
+
+```python
+from pdf_extractor_analyzer import ExtractorConfig, OpenRouterProviderConfig
+
+config = ExtractorConfig(
+    provider="openrouter",
+    openrouter=OpenRouterProviderConfig(api_key="your_key"),
+)
 ```
 
 ## CLI Usage
@@ -55,19 +88,19 @@ pdf-extractor --help
 Full text extraction:
 
 ```bash
-pdf-extractor ./sample-pdfs/sample.pdf --mode full_text --pretty
+pdf-extractor ./sample-pdfs/sample.pdf --provider replicate --mode full_text --pretty
 ```
 
 Summary extraction with disabled cache:
 
 ```bash
-pdf-extractor ./sample-pdfs/sample.pdf --mode summary --cache-mode disabled --pretty
+pdf-extractor ./sample-pdfs/sample.pdf --provider replicate --mode summary --cache-mode disabled --pretty
 ```
 
 Structured extraction with Pydantic schema import:
 
 ```bash
-pdf-extractor ./sample-pdfs/invoice.pdf --mode structured --schema-import my_schemas:InvoiceSchema --pretty
+pdf-extractor ./sample-pdfs/invoice.pdf --provider replicate --mode structured --schema-import my_schemas:InvoiceSchema --pretty
 ```
 
 Batch processing (parallel workers):
@@ -79,14 +112,14 @@ pdf-extractor ./sample-pdfs/a.pdf ./sample-pdfs/b.pdf --mode summary --max-worke
 Markdown extraction (saves `content.json` and `content.md`):
 
 ```bash
-pdf-extractor ./sample-pdfs/sample.pdf --mode markdown --cache-mode persistent --pretty
+pdf-extractor ./sample-pdfs/sample.pdf --provider replicate --mode markdown --cache-mode persistent --pretty
 ```
 
 Control rendered page image size:
 
 ```bash
 # Render at 150dpi, but cap the longest edge (width/height) to 2048px.
-pdf-extractor ./sample-pdfs/sample.pdf --mode markdown --dpi 150 --image-max-long-edge 2048 --pretty
+pdf-extractor ./sample-pdfs/sample.pdf --provider replicate --mode markdown --dpi 150 --image-max-long-edge 2048 --pretty
 ```
 
 Fail fast on first batch error:
@@ -95,12 +128,29 @@ Fail fast on first batch error:
 pdf-extractor ./sample-pdfs/a.pdf ./sample-pdfs/b.pdf --mode summary --stop-on-error
 ```
 
+### OpenRouter CLI example
+
+```bash
+pdf-extractor ./sample-pdfs/sample.pdf \
+  --provider openrouter \
+  --model openrouter/auto \
+  --openrouter-api-key your_key \
+  --mode summary --pretty
+```
+
 ## Python Usage
 
 ```python
 from pydantic import BaseModel
 
-from pdf_extractor_analyzer import CacheMode, ExtractionMode, ExtractorConfig, PDFExtractor
+from pdf_extractor_analyzer import (
+    CacheMode,
+    ExtractionMode,
+    ExtractorConfig,
+    OpenRouterProviderConfig,
+    PDFExtractor,
+    ReplicateProviderConfig,
+)
 
 
 class InvoiceSchema(BaseModel):
@@ -109,7 +159,11 @@ class InvoiceSchema(BaseModel):
     total_amount: float | None = None
 
 
-config = ExtractorConfig(cache_mode=CacheMode.PERSISTENT)
+config = ExtractorConfig(
+    provider="replicate",
+    cache_mode=CacheMode.PERSISTENT,
+    replicate=ReplicateProviderConfig(api_token="your_replicate_token"),
+)
 extractor = PDFExtractor(config)
 
 single = extractor.extract(
@@ -213,11 +267,27 @@ cache/
     └── page_*.png     # Rendered page images
 ```
 
+## Provider Architecture
+
+The LLM layer follows a port-and-adapters design:
+
+- Port contract: `src/pdf_extractor_analyzer/ports/llm_provider.py`
+- Replicate adapter: `src/pdf_extractor_analyzer/adapters/llm/replicate_adapter.py`
+- Provider factory: `src/pdf_extractor_analyzer/provider_factory.py`
+
+To add a new provider adapter:
+1. Implement `LLMProviderPort`
+2. Register a provider builder in `provider_factory.py` (or via `register_provider_builder`)
+3. Add provider-specific config and CLI flags
+4. Add provider-specific tests (unit + optional live integration marker)
+
 ## Current Scope
 
 - Vision-driven extraction pipeline for text/scanned/mixed PDFs
 - Structured mode uses Pydantic schema classes only
 - `extract_many` supports concurrent processing of multiple PDFs
+- Replicate adapter implemented
+- OpenRouter config + CLI wiring in place (adapter implementation pending)
 
 ## Testing
 

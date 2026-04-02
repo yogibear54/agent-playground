@@ -2,15 +2,20 @@ from __future__ import annotations
 
 from typing import Callable
 
-from .adapters.llm import ReplicateLLMAdapter
 from .config import ExtractorConfig
 from .ports.llm_provider import LLMProviderPort
 
 ProviderBuilder = Callable[[ExtractorConfig], LLMProviderPort]
 
 
+def _build_replicate_provider(config: ExtractorConfig) -> LLMProviderPort:
+    from .adapters.llm import ReplicateLLMAdapter
+
+    return ReplicateLLMAdapter(config)
+
+
 _PROVIDER_BUILDERS: dict[str, ProviderBuilder] = {
-    "replicate": lambda config: ReplicateLLMAdapter(config),
+    "replicate": _build_replicate_provider,
 }
 
 

@@ -117,11 +117,11 @@ Decouple PDF extraction/analyzer logic from Replicate so additional LLM provider
 - [x] Split live integration tests by provider markers (e.g., `live_replicate`, future `live_openai`).
 
 ## Phase 9 — Docs and packaging
-- [ ] Update README to describe provider architecture and configuration.
-- [ ] Add docs for adding new provider adapters (developer guide).
+- [x] Update README to describe provider architecture and configuration.
+- [x] Add docs for adding new provider adapters (developer guide).
 - [x] Dependency strategy selected: move provider SDKs to optional extras.
-- [ ] Implement optional extras in `pyproject.toml` (e.g., `[project.optional-dependencies]` for `replicate`, `openrouter`).
-- [ ] Update usage examples for both Python API and CLI.
+- [x] Implement optional extras in `pyproject.toml` (e.g., `[project.optional-dependencies]` for `replicate`, `openrouter`).
+- [x] Update usage examples for both Python API and CLI.
 
 ## Phase 10 — Migration and rollout
 - [ ] Add changelog notes for config/API changes.

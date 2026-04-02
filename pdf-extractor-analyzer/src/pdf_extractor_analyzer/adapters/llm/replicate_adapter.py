@@ -4,8 +4,6 @@ import asyncio
 import base64
 from typing import Any
 
-import replicate
-
 from ...config import ExtractorConfig
 from ...ports.llm_provider import (
     LLMProviderPort,
@@ -14,6 +12,16 @@ from ...ports.llm_provider import (
     ProviderError,
     ProviderErrorCode,
 )
+
+
+def _import_replicate() -> Any:
+    try:
+        import replicate as replicate_module
+    except ImportError as exc:
+        raise ImportError(
+            "Replicate SDK is not installed. Install with: pip install 'pdf-extractor-analyzer[replicate]'"
+        ) from exc
+    return replicate_module
 
 
 class ReplicateLLMAdapter(LLMProviderPort):
@@ -79,6 +87,7 @@ class ReplicateLLMAdapter(LLMProviderPort):
 
     def _build_client(self) -> Any:
         token = self.config.get_replicate_api_token()
+        replicate = _import_replicate()
         if token:
             return replicate.Client(api_token=token)
         return replicate.Client()
@@ -89,6 +98,7 @@ class ReplicateLLMAdapter(LLMProviderPort):
         When AsyncReplicate is missing, async inference uses sync ``client.run``
         in a thread, serialized with a semaphore (see ``_run_model_async``).
         """
+        replicate = _import_replicate()
         async_cls = getattr(replicate, "AsyncReplicate", None)
         if async_cls is None:
             return None

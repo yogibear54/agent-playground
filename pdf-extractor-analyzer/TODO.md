@@ -104,17 +104,17 @@ Decouple PDF extraction/analyzer logic from Replicate so additional LLM provider
 - [x] Include generation parameters (temperature/top_p/presence_penalty/frequency_penalty/max_completion_tokens) in cache key invalidation and implement consistently.
 
 ## Phase 7 — CLI refactor
-- [ ] Add `--provider` option.
-- [ ] Make provider-specific flags explicit and namespaced where needed.
-- [ ] Keep existing Replicate flags working (with deprecation messaging if required).
-- [ ] Update help text to be provider-neutral.
+- [x] Add `--provider` option.
+- [x] Make provider-specific flags explicit and namespaced where needed.
+- [x] Keep existing Replicate flags working (with deprecation messaging if required).
+- [x] Update help text to be provider-neutral.
 
 ## Phase 8 — Tests
 - [x] Add unit tests for provider port contract (sync + async behavior).
 - [x] Add adapter tests for Replicate adapter behavior parity.
 - [x] Update analyzer tests to mock provider port (not Replicate client internals).
 - [x] Update pipeline tests to assert provider appears in metadata/cache params.
-- [ ] Split live integration tests by provider markers (e.g., `live_replicate`, future `live_openai`).
+- [x] Split live integration tests by provider markers (e.g., `live_replicate`, future `live_openai`).
 
 ## Phase 9 — Docs and packaging
 - [ ] Update README to describe provider architecture and configuration.

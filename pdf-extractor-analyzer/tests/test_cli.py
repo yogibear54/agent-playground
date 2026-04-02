@@ -17,8 +17,11 @@ class DummySchema(BaseModel):
 
 
 class FakeExtractor:
+    last_config = None
+
     def __init__(self, config):
         self.config = config
+        FakeExtractor.last_config = config
 
     def extract(self, pdf_path, *, mode, schema=None):
         return ExtractionResult(
@@ -175,3 +178,55 @@ def test_cli_successful_extraction_returns_0(monkeypatch, capsys):
     code = cli.main(["/tmp/a.pdf", "--mode", "summary"])
 
     assert code == 0
+
+
+def test_cli_provider_and_openrouter_flags_map_to_config(monkeypatch, capsys):
+    monkeypatch.setattr(cli, "PDFExtractor", FakeExtractor)
+
+    code = cli.main(
+        [
+            "/tmp/a.pdf",
+            "--mode",
+            "summary",
+            "--provider",
+            "openrouter",
+            "--openrouter-api-key",
+            "key-123",
+            "--openrouter-base-url",
+            "https://example.com/or",
+            "--model",
+            "openrouter/auto",
+        ]
+    )
+
+    assert code == 0
+    cfg = FakeExtractor.last_config
+    assert cfg is not None
+    assert cfg.provider == "openrouter"
+    assert cfg.openrouter.api_key == "key-123"
+    assert cfg.openrouter.base_url == "https://example.com/or"
+    assert cfg.model == "openrouter/auto"
+
+
+def test_cli_legacy_replicate_flags_still_work(monkeypatch, capsys):
+    monkeypatch.setattr(cli, "PDFExtractor", FakeExtractor)
+
+    code = cli.main(
+        [
+            "/tmp/a.pdf",
+            "--mode",
+            "summary",
+            "--max-concurrent-replicate-calls",
+            "3",
+            "--replicate-api-token",
+            "rep-token",
+        ]
+    )
+
+    assert code == 0
+    cfg = FakeExtractor.last_config
+    assert cfg is not None
+    assert cfg.max_concurrent_replicate_calls == 3
+    assert cfg.replicate.max_concurrent_calls == 3
+    assert cfg.replicate_api_token == "rep-token"
+    assert cfg.replicate.api_token == "rep-token"

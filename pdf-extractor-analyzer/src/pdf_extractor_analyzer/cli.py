@@ -9,7 +9,12 @@ from pathlib import Path
 
 from pydantic import BaseModel
 
-from .config import CacheMode, ExtractorConfig
+from .config import (
+    CacheMode,
+    ExtractorConfig,
+    OpenRouterProviderConfig,
+    ReplicateProviderConfig,
+)
 from .pipeline import PDFExtractor
 from .schemas import ExtractionMode
 
@@ -36,8 +41,17 @@ def build_parser() -> argparse.ArgumentParser:
         choices=[m.value for m in ExtractionMode],
         help="Extraction mode",
     )
-    parser.add_argument("--model", default="openai/gpt-4o", help="Primary Replicate model")
-    parser.add_argument("--fallback-model", default="openai/gpt-4o-mini", help="Fallback model")
+    parser.add_argument(
+        "--provider",
+        default="replicate",
+        help="LLM provider (e.g. replicate, openrouter)",
+    )
+    parser.add_argument("--model", default="openai/gpt-4o", help="Primary model")
+    parser.add_argument(
+        "--fallback-model",
+        default="openai/gpt-4o-mini",
+        help="Fallback model (same provider)",
+    )
     parser.add_argument("--dpi", type=int, default=150, help="DPI for PDF image conversion")
     parser.add_argument(
         "--image-max-long-edge",
@@ -65,8 +79,29 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--max-concurrent-replicate-calls",
         type=int,
-        default=1,
-        help="Max concurrent Replicate submissions when using sync run (default 1)",
+        default=None,
+        help="[Deprecated] Max concurrent Replicate submissions when using sync run",
+    )
+    parser.add_argument(
+        "--replicate-max-concurrent-calls",
+        type=int,
+        default=None,
+        help="Replicate max concurrent submissions when sync fallback is used",
+    )
+    parser.add_argument(
+        "--replicate-api-token",
+        default=None,
+        help="Replicate API token (overrides REPLICATE_API_TOKEN)",
+    )
+    parser.add_argument(
+        "--openrouter-api-key",
+        default=None,
+        help="OpenRouter API key (overrides OPENROUTER_API_KEY)",
+    )
+    parser.add_argument(
+        "--openrouter-base-url",
+        default="https://openrouter.ai/api/v1",
+        help="OpenRouter API base URL",
     )
     parser.add_argument(
         "--async-rps",
@@ -106,17 +141,35 @@ def main(argv: list[str] | None = None) -> int:
                 parser.error("Structured mode requires --schema-import module:ClassName")
             schema_class = _schema_from_import(args.schema_import)
 
+        replicate_max_calls = (
+            args.replicate_max_concurrent_calls
+            if args.replicate_max_concurrent_calls is not None
+            else args.max_concurrent_replicate_calls
+        )
+        if replicate_max_calls is None:
+            replicate_max_calls = 1
+
         config = ExtractorConfig(
             dpi=args.dpi,
             image_max_long_edge=args.image_max_long_edge,
             cache_mode=CacheMode(args.cache_mode),
             cache_dir=Path(args.cache_dir),
             cache_ttl_days=args.cache_ttl_days,
+            provider=args.provider,
             model=args.model,
             fallback_model=args.fallback_model,
             max_pages=args.max_pages,
             max_concurrent_pages=args.max_concurrent_pages,
-            max_concurrent_replicate_calls=args.max_concurrent_replicate_calls,
+            max_concurrent_replicate_calls=replicate_max_calls,
+            replicate_api_token=args.replicate_api_token,
+            replicate=ReplicateProviderConfig(
+                api_token=args.replicate_api_token,
+                max_concurrent_calls=replicate_max_calls,
+            ),
+            openrouter=OpenRouterProviderConfig(
+                api_key=args.openrouter_api_key,
+                base_url=args.openrouter_base_url,
+            ),
             async_requests_per_second=args.async_rps,
         )
 

@@ -14,8 +14,15 @@ def _build_replicate_provider(config: ExtractorConfig) -> LLMProviderPort:
     return ReplicateLLMAdapter(config)
 
 
+def _build_openrouter_provider(config: ExtractorConfig) -> LLMProviderPort:
+    from .adapters.llm import OpenRouterLLMAdapter
+
+    return OpenRouterLLMAdapter(config)
+
+
 _PROVIDER_BUILDERS: dict[str, ProviderBuilder] = {
     "replicate": _build_replicate_provider,
+    "openrouter": _build_openrouter_provider,
 }
 
 

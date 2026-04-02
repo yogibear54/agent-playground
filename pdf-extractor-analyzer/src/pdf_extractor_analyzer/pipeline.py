@@ -251,10 +251,13 @@ class PDFExtractor:
         schema: type[BaseModel] | None,
     ) -> dict[str, Any]:
         """Build extraction parameters dict for cache invalidation checks."""
+        primary_model = self.config.get_primary_model()
+        fallback_model = self.config.get_fallback_model()
         params: dict[str, Any] = {
             "mode": mode.value,
             "provider": self.config.provider,
-            "model": self.config.model,
+            "model": primary_model,
+            "fallback_model": fallback_model,
             "max_pages": self.config.max_pages,
             "generation": {
                 "max_completion_tokens": self.config.max_completion_tokens,
@@ -308,7 +311,7 @@ class PDFExtractor:
                             "source_hash": source_hash,
                             "page_count": cached_content.get("page_count", 0),
                             "provider": self.config.provider,
-                            "model": self.config.model,
+                            "model": self.config.get_primary_model(),
                             "cache_mode": self.config.cache_mode.value,
                             "generated_at": cached_content.get("cached_at"),
                             "from_cache": True,
@@ -356,7 +359,7 @@ class PDFExtractor:
                     "source_hash": source_hash,
                     "page_count": len(pages),
                     "provider": self.config.provider,
-                    "model": self.config.model,
+                    "model": self.config.get_primary_model(),
                     "cache_mode": self.config.cache_mode.value,
                     "generated_at": datetime.now(UTC).isoformat(),
                     "correlation_id": correlation_id,
@@ -429,7 +432,7 @@ class PDFExtractor:
                         "source_hash": source_hash,
                         "page_count": cached_content.get("page_count", 0),
                         "provider": self.config.provider,
-                        "model": self.config.model,
+                        "model": self.config.get_primary_model(),
                         "cache_mode": self.config.cache_mode.value,
                         "generated_at": cached_content.get("cached_at"),
                         "from_cache": True,
@@ -496,7 +499,7 @@ class PDFExtractor:
                 "page_count": len(pages),
                 "successful_pages": len(page_outputs),
                 "provider": self.config.provider,
-                "model": self.config.model,
+                "model": self.config.get_primary_model(),
                 "cache_mode": self.config.cache_mode.value,
                 "generated_at": datetime.now(UTC).isoformat(),
                 "correlation_id": correlation_id,

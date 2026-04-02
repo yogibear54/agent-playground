@@ -11,7 +11,7 @@ from typing import Any, Awaitable, Callable
 from .adapters.llm import ReplicateLLMAdapter
 from .config import ExtractorConfig
 from .exceptions import AnalysisError, ValidationError
-from .ports.llm_provider import GenerationParams, LLMProviderPort, LLMRequest
+from .ports.llm_provider import GenerationParams, LLMProviderPort, LLMRequest, ProviderError
 from .schemas import ExtractionMode
 
 # Module-level logger
@@ -78,7 +78,7 @@ class VisionAnalyzer:
             "page_number": page_number,
             "mode": mode.value,
             "provider": self.provider.provider_name,
-            "model": self.config.model,
+            "model": self.config.get_primary_model(),
         }
 
         self._logger.info("Starting page analysis", extra=extra)
@@ -132,7 +132,7 @@ class VisionAnalyzer:
             "page_number": page_number,
             "mode": mode.value,
             "provider": self.provider.provider_name,
-            "model": self.config.model,
+            "model": self.config.get_primary_model(),
         }
 
         self._logger.info("Starting async page analysis", extra=extra)
@@ -331,9 +331,11 @@ class VisionAnalyzer:
         correlation_id: str | None = None,
         page_number: int | None = None,
     ) -> str:
-        candidate_models: list[str] = [self.config.model]
-        if self.config.fallback_model and self.config.fallback_model != self.config.model:
-            candidate_models.append(self.config.fallback_model)
+        primary_model = self.config.get_primary_model()
+        fallback_model = self.config.get_fallback_model()
+        candidate_models: list[str] = [primary_model]
+        if fallback_model and fallback_model != primary_model:
+            candidate_models.append(fallback_model)
 
         last_error: Exception | None = None
         cid = correlation_id or str(uuid.uuid4())[:8]
@@ -382,6 +384,9 @@ class VisionAnalyzer:
 
                 except Exception as exc:
                     last_error = exc
+                    # If the provider explicitly says "do not retry", respect it.
+                    if isinstance(exc, ProviderError) and exc.retryable is False:
+                        break
                     if attempt >= self.config.max_retries:
                         break
 
@@ -423,9 +428,11 @@ class VisionAnalyzer:
         page_number: int | None = None,
         rate_limit_coro: Callable[[], Awaitable[None]] | None = None,
     ) -> str:
-        candidate_models: list[str] = [self.config.model]
-        if self.config.fallback_model and self.config.fallback_model != self.config.model:
-            candidate_models.append(self.config.fallback_model)
+        primary_model = self.config.get_primary_model()
+        fallback_model = self.config.get_fallback_model()
+        candidate_models: list[str] = [primary_model]
+        if fallback_model and fallback_model != primary_model:
+            candidate_models.append(fallback_model)
 
         last_error: Exception | None = None
         cid = correlation_id or str(uuid.uuid4())[:8]
@@ -453,7 +460,12 @@ class VisionAnalyzer:
 
                 except Exception as exc:
                     last_error = exc
-                    if attempt >= self.config.max_retries:
+
+                    should_retry = attempt < self.config.max_retries
+                    if isinstance(exc, ProviderError) and exc.retryable is False:
+                        should_retry = False
+
+                    if not should_retry:
                         break
 
                     sleep_seconds = self.config.retry_backoff_seconds * (2 ** (attempt - 1))

@@ -287,7 +287,7 @@ To add a new provider adapter:
 - Structured mode uses Pydantic schema classes only
 - `extract_many` supports concurrent processing of multiple PDFs
 - Replicate adapter implemented
-- OpenRouter config + CLI wiring in place (adapter implementation pending)
+- OpenRouter adapter implemented
 
 ## Testing
 
@@ -303,8 +303,15 @@ Run optional live Replicate integration test:
 PDF_EXTRACTOR_LIVE_TEST=1 REPLICATE_API_TOKEN=your_token pytest -m live_replicate -q
 ```
 
-Optional model override for live test:
+Run optional live OpenRouter integration test:
+
+```bash
+PDF_EXTRACTOR_LIVE_TEST=1 OPENROUTER_API_KEY=your_key pytest -m live_openrouter -q
+```
+
+Optional model override for live tests:
 
 ```bash
 PDF_EXTRACTOR_LIVE_TEST=1 REPLICATE_API_TOKEN=your_token PDF_EXTRACTOR_LIVE_MODEL=openai/gpt-4o-mini pytest -m live_replicate -q
+PDF_EXTRACTOR_LIVE_TEST=1 OPENROUTER_API_KEY=your_key PDF_EXTRACTOR_LIVE_MODEL=openai/gpt-4o-mini pytest -m live_openrouter -q
 ```

@@ -2,7 +2,7 @@ from dataclasses import dataclass
 
 import pytest
 
-from pdf_extractor_analyzer.config import ExtractorConfig
+from pdf_extractor_analyzer.config import ExtractorConfig, OpenRouterProviderConfig
 from pdf_extractor_analyzer.ports.llm_provider import LLMResponse
 from pdf_extractor_analyzer.provider_factory import (
     create_llm_provider,
@@ -38,6 +38,15 @@ def test_register_provider_builder_and_create_custom_provider():
 
     provider = create_llm_provider(Cfg())  # type: ignore[arg-type]
     assert provider.provider_name == "dummy"
+
+
+def test_create_llm_provider_openrouter():
+    cfg = ExtractorConfig(
+        provider="openrouter",
+        openrouter=OpenRouterProviderConfig(api_key="key"),
+    )
+    provider = create_llm_provider(cfg)
+    assert provider.provider_name == "openrouter"
 
 
 def test_create_llm_provider_unknown_provider_raises():

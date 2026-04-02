@@ -5,6 +5,7 @@ import warnings
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
+from typing import ClassVar
 
 
 class CacheMode(str, Enum):
@@ -17,16 +18,25 @@ class CacheMode(str, Enum):
 class ReplicateProviderConfig:
     api_token: str | None = None
     max_concurrent_calls: int = 1
+    model: str | None = None
+    fallback_model: str | None = None
 
 
 @dataclass(slots=True)
 class OpenRouterProviderConfig:
     api_key: str | None = None
     base_url: str = "https://openrouter.ai/api/v1"
+    model: str | None = None
+    fallback_model: str | None = None
 
 
 @dataclass(slots=True)
 class ExtractorConfig:
+    LEGACY_DEFAULT_MODEL: ClassVar[str] = "openai/gpt-4o"
+    LEGACY_DEFAULT_FALLBACK_MODEL: ClassVar[str | None] = "openai/gpt-4o-mini"
+    OPENROUTER_DEFAULT_MODEL: ClassVar[str] = "z-ai/glm-4.6v"
+    OPENROUTER_DEFAULT_FALLBACK_MODEL: ClassVar[str | None] = "openrouter/auto"
+
     dpi: int = 150
     cache_dir: Path = Path("./cache")
     cache_mode: CacheMode = CacheMode.PERSISTENT
@@ -35,8 +45,8 @@ class ExtractorConfig:
     max_pages: int | None = None
 
     provider: str = "replicate"
-    model: str = "openai/gpt-4o"
-    fallback_model: str | None = "openai/gpt-4o-mini"
+    model: str = LEGACY_DEFAULT_MODEL
+    fallback_model: str | None = LEGACY_DEFAULT_FALLBACK_MODEL
 
     # New provider-grouped settings
     replicate: ReplicateProviderConfig = field(default_factory=ReplicateProviderConfig)
@@ -114,6 +124,34 @@ class ExtractorConfig:
     def get_openrouter_api_key(self) -> str | None:
         # Config value wins, then env var fallback.
         return self.openrouter.api_key or os.getenv("OPENROUTER_API_KEY")
+
+    def get_primary_model(self) -> str:
+        provider_key = self.provider.strip().lower()
+        if provider_key == "openrouter":
+            if self.openrouter.model:
+                return self.openrouter.model
+            # Back-compat: if user explicitly provided legacy model, keep it.
+            if self.model != self.LEGACY_DEFAULT_MODEL:
+                return self.model
+            return self.OPENROUTER_DEFAULT_MODEL
+
+        # replicate/default path
+        return self.replicate.model or self.model
+
+    def get_fallback_model(self) -> str | None:
+        provider_key = self.provider.strip().lower()
+        if provider_key == "openrouter":
+            if self.openrouter.fallback_model is not None:
+                return self.openrouter.fallback_model
+            # Back-compat: preserve explicit legacy fallback values only.
+            if self.fallback_model != self.LEGACY_DEFAULT_FALLBACK_MODEL:
+                return self.fallback_model
+            return self.OPENROUTER_DEFAULT_FALLBACK_MODEL
+
+        # replicate/default path
+        if self.replicate.fallback_model is not None:
+            return self.replicate.fallback_model
+        return self.fallback_model
 
     def validate(self) -> None:
         self._sync_legacy_provider_fields()

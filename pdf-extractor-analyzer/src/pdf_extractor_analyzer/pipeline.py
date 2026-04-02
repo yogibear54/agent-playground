@@ -253,8 +253,16 @@ class PDFExtractor:
         """Build extraction parameters dict for cache invalidation checks."""
         params: dict[str, Any] = {
             "mode": mode.value,
+            "provider": self.config.provider,
             "model": self.config.model,
             "max_pages": self.config.max_pages,
+            "generation": {
+                "max_completion_tokens": self.config.max_completion_tokens,
+                "temperature": self.config.temperature,
+                "top_p": self.config.top_p,
+                "presence_penalty": self.config.presence_penalty,
+                "frequency_penalty": self.config.frequency_penalty,
+            },
         }
         if schema is not None:
             params["schema"] = schema.model_json_schema()
@@ -299,6 +307,7 @@ class PDFExtractor:
                         metadata={
                             "source_hash": source_hash,
                             "page_count": cached_content.get("page_count", 0),
+                            "provider": self.config.provider,
                             "model": self.config.model,
                             "cache_mode": self.config.cache_mode.value,
                             "generated_at": cached_content.get("cached_at"),
@@ -346,6 +355,7 @@ class PDFExtractor:
                 metadata={
                     "source_hash": source_hash,
                     "page_count": len(pages),
+                    "provider": self.config.provider,
                     "model": self.config.model,
                     "cache_mode": self.config.cache_mode.value,
                     "generated_at": datetime.now(UTC).isoformat(),
@@ -418,6 +428,7 @@ class PDFExtractor:
                     metadata={
                         "source_hash": source_hash,
                         "page_count": cached_content.get("page_count", 0),
+                        "provider": self.config.provider,
                         "model": self.config.model,
                         "cache_mode": self.config.cache_mode.value,
                         "generated_at": cached_content.get("cached_at"),
@@ -484,6 +495,7 @@ class PDFExtractor:
                 "source_hash": source_hash,
                 "page_count": len(pages),
                 "successful_pages": len(page_outputs),
+                "provider": self.config.provider,
                 "model": self.config.model,
                 "cache_mode": self.config.cache_mode.value,
                 "generated_at": datetime.now(UTC).isoformat(),

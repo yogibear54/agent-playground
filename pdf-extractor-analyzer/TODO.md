@@ -1,344 +1,142 @@
-# PDF Extractor Analyzer - Enhancement Tasks
+# TODO: Refactor LLM Integration to Port-and-Adapters Architecture
 
-This document tracks the implementation of 6 major enhancements to the PDF Extractor Analyzer codebase.
+## Goal
+Decouple PDF extraction/analyzer logic from Replicate so additional LLM providers can be added without changing core pipeline logic.
 
-## Quick Reference
-
-| Task | Priority | Status | Files Modified |
-|------|----------|--------|----------------|
-| 1. Fix repair_structured_output candidate parameter | High | ✅ | analyzer.py |
-| 2. Increase cache hash prefix length | Medium | ✅ | cache.py |
-| 3. Add logging/observability | High | ✅ | analyzer.py, config.py, pipeline.py |
-| 4. Add input validation | High | ✅ | pipeline.py, converter.py, analyzer.py, config.py |
-| 5. Save extraction results to content.json | Medium | ✅ | pipeline.py, cache.py |
-| 6. Create async/streaming support | High | ☐ | analyzer.py, pipeline.py, cli.py, config.py |
+## Confirmed Decisions
+- First non-Replicate provider: **OpenRouter**
+- Fallback policy: **same provider only**
+- Backward compatibility: **strict compatibility required** (existing Python/CLI usage must continue working)
+- Provider dependencies: **optional extras** (not all providers required in base install)
+- Cache invalidation: **include generation params** (temperature/top_p/penalties/tokens) along with provider+model
 
 ---
 
-## Task 1: Fix Unused Candidate Parameter in repair_structured_output
+## Research Findings (Current State)
 
-**Status:** ☐ Not Started | ☐ In Progress | ✅ Done
+### Where Replicate is hard-wired
+- `src/pdf_extractor_analyzer/pipeline.py`
+  - Imports and instantiates `ReplicateVisionAnalyzer` directly (`:14`, `:55`)
+- `src/pdf_extractor_analyzer/analyzer.py`
+  - Imports `replicate` SDK at module level
+  - Class is Replicate-specific (`ReplicateVisionAnalyzer`)
+  - Builds `replicate.Client` / `AsyncReplicate` (`:33`, `:35`, `:56`)
+  - Calls `client.run(...)` / `async_client.run(...)` directly (`:404`, `:411`, `:516`, `:522`, `:530`, `:536`)
+  - Error text is Replicate-branded (`"Replicate analysis failed"`)
+- `src/pdf_extractor_analyzer/config.py`
+  - Replicate-specific config fields:
+    - `replicate_api_token` (`:25`)
+    - `max_concurrent_replicate_calls` (`:35`)
+- `src/pdf_extractor_analyzer/cli.py`
+  - No provider selection
+  - `--model` help text references Replicate (`:39`)
+  - `--max-concurrent-replicate-calls` is Replicate-specific (`:66`)
+- `pyproject.toml`
+  - `replicate` is a mandatory dependency
+- Tests/docs
+  - Live integration test is Replicate-specific (`tests/integration/test_live_replicate.py`)
+  - README is Replicate-centric
 
-### Description
-The `repair_structured_output` method in `analyzer.py` accepts a `candidate` parameter but it's correctly being used in the prompt construction. However, the parameter could use better type validation and the prompt construction could be clearer.
+### Where LLM calls happen in the pipeline
+1. **Per-page extraction (sync)**
+   - `PDFExtractor.extract()` → `analyzer.analyze_page(...)` (`pipeline.py:326`)
+2. **Per-page extraction (async)**
+   - `PDFExtractor.extract_async()` / `extract_streaming()` → `analyzer.analyze_page_async(...)` (`:437`, `:546`)
+3. **Structured-output repair pass**
+   - During aggregation when schema validation fails:
+     - sync: `repair_structured_output(...)` (`:652`)
+     - async: `repair_structured_output_async(...)` (`:698`)
 
-### Files Affected
-- `src/pdf_extractor_analyzer/analyzer.py` (lines 26-46)
-
-### Implementation Details
-- [x] Review current `candidate` parameter usage in `repair_structured_output`
-- [x] Verify candidate is properly serialized to JSON in prompt
-- [x] Add validation that candidate is a valid dict
-- [x] Ensure candidate values don't exceed reasonable size limits (100KB)
-- [x] Add unit test to verify candidate appears in repair prompt
-
-### Testing Requirements
-- [x] Test that candidate dictionary is properly formatted in repair prompt
-- [x] Test edge cases: non-dict types (string, list)
-- [x] Test oversized candidate rejection (>100KB)
-- [x] Verify repair still works after changes
-
----
-
-## Task 2: Increase Cache Hash Prefix Length
-
-**Status:** ☐ Not Started | ☐ In Progress | ✅ Done
-
-### Description
-The current cache uses only 16 characters of the SHA256 hash for the directory name, which increases collision risk with many documents. Increasing to 32 characters significantly reduces collision probability while keeping paths manageable.
-
-### Files Affected
-- `src/pdf_extractor_analyzer/cache.py` (line 26)
-
-### Implementation Details
-- [x] Change `source_hash[:16]` to `source_hash[:32]` for directory names
-- [x] Consider using full hash (64 chars) for maximum safety
-- [x] Update ephemeral cache prefix format to maintain consistency
-- [x] Document the hash length in code comments
-
-### Testing Requirements
-- [x] Test cache hit/miss with new hash length
-- [x] Verify backward compatibility (old 16-char caches should be ignored, not crash)
-- [x] Test collision scenarios if possible
+### Additional coupling concerns to address during refactor
+- Cache invalidation keys currently include `mode`, `model`, `max_pages`, optional `schema` (`pipeline.py:247-259`) but **not provider identity**.
+- Result metadata stores only `model`, not provider (`pipeline.py:348`, `:486`, etc.).
+- Model parameter payload is currently shaped for Replicate-hosted OpenAI-style inputs (`image_input`, penalties, etc.) in `analyzer.py:541-552`.
 
 ---
 
-## Task 3: Add Logging/Observability for API Calls
+## Implementation TODOs
 
-**Status:** ☐ Not Started | ☐ In Progress | ✅ Done
+## Phase 0 — Clarify product decisions (blocking)
+- [x] Confirm initial provider list to support after Replicate: **OpenRouter**.
+- [x] Confirm fallback policy: **same provider only**.
+- [x] Confirm backward-compatibility requirement for existing API/CLI config fields: **strict compatibility**.
+- [x] Confirm provider authentication strategy for OpenRouter: **both**, with config overriding env vars.
 
-### Description
-Add comprehensive logging for API calls including timing metrics, retry counts, model usage, and error tracking. This enables performance monitoring and debugging.
+## Phase 1 — Define ports (core contracts)
+- [x] Create provider port interface(s), e.g. `src/pdf_extractor_analyzer/ports/llm_provider.py`.
+- [x] Define provider-agnostic request/response models for vision inference:
+  - [x] prompt
+  - [x] optional image bytes
+  - [x] model identifier
+  - [x] inference params (temperature, top_p, token limits, etc.)
+  - [x] timeout
+- [x] Define sync + async contract methods.
+- [x] Define normalized error contract for provider failures.
 
-### Files Affected
-- `src/pdf_extractor_analyzer/analyzer.py` - Add logging calls and timing
-- `src/pdf_extractor_analyzer/config.py` - Add logging configuration
-- `src/pdf_extractor_analyzer/pipeline.py` - Add operation-level logging
+## Phase 2 — Move Replicate logic into an adapter
+- [ ] Create adapter module, e.g. `src/pdf_extractor_analyzer/adapters/llm/replicate_adapter.py`.
+- [ ] Move SDK client construction (`Client`/`AsyncReplicate`) from analyzer into adapter.
+- [ ] Move `run(...)` call behavior and `wait` compatibility fallback into adapter.
+- [ ] Move async fallback (`to_thread` + semaphore) behavior into adapter (or a shared transport policy layer).
+- [ ] Keep existing behavior parity for retries/timeouts/output normalization.
 
-### Implementation Details
-- [x] Add `import logging` to analyzer.py
-- [x] Create logger instance in ReplicateVisionAnalyzer
-- [x] Add timing context manager or decorator for API calls
-- [x] Log at INFO level: successful API calls with model name, duration
-- [x] Log at WARNING level: retries with attempt count and error
-- [x] Log at ERROR level: final failures after all retries
-- [x] Add correlation ID for multi-page document tracing
-- [x] Track and log: latency, tokens used (if available from API), page number
-- [x] Add logging config to ExtractorConfig: `log_level`
-- [x] Add helper method to format log context with correlation IDs
+## Phase 3 — Refactor analyzer into provider-agnostic application service
+- [ ] Replace `ReplicateVisionAnalyzer` with provider-neutral analyzer service.
+- [ ] Inject provider port into analyzer (constructor dependency injection).
+- [ ] Keep prompt-building and JSON extraction/repair logic in core analyzer.
+- [ ] Ensure structured repair flow uses the same provider port (text-only request).
+- [ ] Remove direct `import replicate` from analyzer core.
 
-### Code Design
-```python
-# Example logging output
-logger.info(
-    "API call successful",
-    extra={
-        "model": "openai/gpt-4o",
-        "duration_ms": 1250,
-        "page": 3,
-        "correlation_id": "abc123",
-    }
-)
-```
+## Phase 4 — Provider factory / composition
+- [ ] Add provider factory/registry to instantiate adapter from config.
+- [ ] Wire factory into `PDFExtractor` initialization.
+- [ ] Ensure batch worker cloning still shares analyzer/provider safely where intended.
 
-### Testing Requirements
-- [x] Test logging integration (implicit through existing tests)
-- [x] Verify correlation ID propagation (implemented in code)
-- [x] Test log level configuration validation
-- [x] Test logger initialization with config
+## Phase 5 — Config refactor
+- [ ] Introduce provider selection field (e.g., `provider="replicate"`).
+- [ ] Introduce provider-specific config grouping (replicate settings separated from generic LLM settings).
+- [ ] Preserve current fields with deprecation shims where needed (`replicate_api_token`, `max_concurrent_replicate_calls`).
+- [ ] Update config validation to enforce provider-specific requirements.
 
----
+## Phase 6 — Pipeline/cache/metadata updates
+- [ ] Include provider identity in extraction params used for cache invalidation.
+- [ ] Include provider identity in extraction result metadata.
+- [x] Include generation parameters (temperature/top_p/presence_penalty/frequency_penalty/max_completion_tokens) in cache key invalidation and implement consistently.
 
-## Task 4: Add Input Validation
+## Phase 7 — CLI refactor
+- [ ] Add `--provider` option.
+- [ ] Make provider-specific flags explicit and namespaced where needed.
+- [ ] Keep existing Replicate flags working (with deprecation messaging if required).
+- [ ] Update help text to be provider-neutral.
 
-**Status:** ☐ Not Started | ☐ In Progress | ✅ Done
+## Phase 8 — Tests
+- [x] Add unit tests for provider port contract (sync + async behavior).
+- [ ] Add adapter tests for Replicate adapter behavior parity.
+- [ ] Update analyzer tests to mock provider port (not Replicate client internals).
+- [ ] Update pipeline tests to assert provider appears in metadata/cache params.
+- [ ] Split live integration tests by provider markers (e.g., `live_replicate`, future `live_openai`).
 
-### Description
-Add comprehensive input validation for PDF paths (security), image sizes, and API payload limits to prevent errors and security issues.
+## Phase 9 — Docs and packaging
+- [ ] Update README to describe provider architecture and configuration.
+- [ ] Add docs for adding new provider adapters (developer guide).
+- [x] Dependency strategy selected: move provider SDKs to optional extras.
+- [ ] Implement optional extras in `pyproject.toml` (e.g., `[project.optional-dependencies]` for `replicate`, `openrouter`).
+- [ ] Update usage examples for both Python API and CLI.
 
-### Files Affected
-- `src/pdf_extractor_analyzer/config.py` - Add validation config options
-- `src/pdf_extractor_analyzer/pipeline.py` - Add path validation
-- `src/pdf_extractor_analyzer/converter.py` - Add image size validation
-- `src/pdf_extractor_analyzer/analyzer.py` - Add payload size validation
-- `src/pdf_extractor_analyzer/exceptions.py` - Add ValidationError
-
-### Implementation Details
-- [x] Add new config fields:
-  - `max_image_width: int = 4096`
-  - `max_image_height: int = 4096`
-  - `max_image_bytes: int = 20_971_520` (20MB)
-  - `max_pdf_file_size: int | None = None`
-- [x] Create `ValidationError` exception class
-- [x] In pipeline.py extract(): Validate PDF path:
-  - Check for path traversal attempts (../)
-  - Verify file is actually a PDF (magic bytes)
-  - Check file size limits
-- [x] In converter.py convert(): Validate image dimensions during conversion
-  - Check if rendered image exceeds max dimensions
-- [x] In analyzer.py: Validate image_bytes size before API call
-- [x] Add validation methods to ExtractorConfig
-
-### Code Design
-```python
-class ExtractorConfig:
-    max_image_width: int = 4096
-    max_image_height: int = 4096
-    max_image_bytes: int = 20_971_520  # 20MB
-    max_total_pages: int | None = None
-    
-    def validate_pdf_path(self, path: Path) -> None:
-        # Path traversal check
-        # PDF magic bytes check
-        pass
-```
-
-### Testing Requirements
-- [x] Test path traversal detection
-- [x] Test PDF magic bytes validation
-- [x] Test image size limit enforcement
-- [x] Test payload size validation
-- [x] Test graceful handling of oversized inputs
+## Phase 10 — Migration and rollout
+- [ ] Add changelog notes for config/API changes.
+- [ ] Add deprecation warnings for old Replicate-only fields/names.
+- [ ] Validate no regression in:
+  - [ ] sync extraction
+  - [ ] async extraction
+  - [ ] streaming extraction
+  - [ ] structured repair flow
+  - [ ] caching semantics
 
 ---
 
-## Task 5: Save Extraction Results to content.json
-
-**Status:** ☐ Not Started | ☐ In Progress | ✅ Done
-
-### Description
-Save the final extracted content to a `content.json` file in the cache directory alongside the page images. This enables result caching and re-extraction without repeated API calls.
-
-### Files Affected
-- `src/pdf_extractor_analyzer/pipeline.py` - Add content.json writing
-- `src/pdf_extractor_analyzer/cache.py` - Add content cache methods
-- `src/pdf_extractor_analyzer/schemas.py` - Ensure JSON serialization
-
-### Implementation Details
-- [x] Add `content_path()` method to CacheManager returning `cache_dir / "content.json"`
-- [x] Add `write_content()` method to serialize ExtractionResult to JSON
-- [x] Add `read_content()` method to deserialize cached result
-- [x] Add `is_content_cache_hit()` to check if valid content exists
-- [x] In pipeline.py extract(), after successful extraction:
-  - Write result to content.json
-  - Include extraction parameters hash for cache invalidation
-- [x] In pipeline.py _prepare_pages() or new method: Check content cache first
-- [x] Update cache invalidation logic when parameters change
-
-### Cache Key Considerations
-Content cache should be invalidated when any of these change:
-- PDF content hash (source_hash)
-- Extraction mode
-- Schema (for structured mode)
-- Model used
-- max_pages setting
-
-### Testing Requirements
-- [x] Test content.json writing
-- [x] Test content cache hit detection
-- [x] Test cache invalidation on parameter change
-- [x] Test reading corrupted content.json (graceful fallback)
-
----
-
-## Task 6: Create Async/Streaming Support
-
-**Status:** ☐ Not Started | ☐ In Progress | ☐ Done
-
-### Description
-Add async support using asyncio for concurrent page processing and streaming results. This significantly improves performance for multi-page documents.
-
-### Files Affected
-- `src/pdf_extractor_analyzer/analyzer.py` - Add async analyze method
-- `src/pdf_extractor_analyzer/pipeline.py` - Add extract_async methods
-- `src/pdf_extractor_analyzer/cli.py` - Add --async flag
-- `src/pdf_extractor_analyzer/config.py` - Add async config options
-
-### Implementation Details
-- [ ] Add `aiohttp` or use `asyncio` with replicate's async client if available
-- [ ] In analyzer.py, add `analyze_page_async()` async method
-- [ ] In pipeline.py, add `extract_async()` async method:
-  - Process pages concurrently with `asyncio.gather()` or semaphore-based throttling
-  - Maintain page order in results
-- [ ] In pipeline.py, add `extract_many_async()` for concurrent batch processing
-- [ ] Add streaming support with `extract_streaming()` async generator:
-  - Yield results page-by-page as they complete
-  - Allow consumers to process partial results
-- [ ] Update CLI with `--async` flag to use async paths
-- [ ] Add config: `enable_async: bool = False`, `max_concurrent_pages: int = 4`
-- [ ] Add rate limiting semaphore to prevent API throttling
-
-### Code Design
-```python
-class PDFExtractor:
-    async def extract_async(
-        self,
-        pdf_path: str | Path,
-        *,
-        mode: ExtractionMode,
-        schema: type[BaseModel] | None = None,
-    ) -> ExtractionResult:
-        # Convert pages
-        # Use asyncio.gather with semaphore for concurrent analysis
-        pass
-    
-    async def extract_streaming(
-        self,
-        pdf_path: str | Path,
-        *,
-        mode: ExtractionMode,
-        schema: type[BaseModel] | None = None,
-    ) -> AsyncIterator[tuple[int, str | dict]]:
-        # Yield (page_number, result) as each page completes
-        pass
-```
-
-### Testing Requirements
-- [ ] Test async extraction with single page
-- [ ] Test async extraction with multiple pages (concurrency)
-- [ ] Test streaming output order
-- [ ] Test CLI --async flag
-- [ ] Test error handling in async context
-- [ ] Add pytest-asyncio configuration
-
----
-
-## Development Workflow
-
-### Phase 1: Foundation
-1. Task 1 - Fix candidate parameter (quick fix)
-2. Task 2 - Hash length (trivial change)
-3. Task 4 - Input validation (add safety before async)
-
-### Phase 2: Enhancement
-4. Task 3 - Logging (supports debugging async)
-5. Task 5 - Content caching (builds on existing cache)
-
-### Phase 3: Major Feature
-6. Task 6 - Async support (largest change)
-
-### Phase 4: Polish
-7. Comprehensive testing
-8. Documentation updates
-9. Final verification
-
----
-
-## Backward Compatibility
-
-All changes maintain backward compatibility:
-- [x] Sync API remains unchanged
-- [x] Config defaults maintain current behavior
-- [x] Cache changes don't break existing caches (old 16-char caches gracefully ignored)
-- [x] CLI without new flags works identically
-
----
-
-## Testing Checklist
-
-### Unit Tests
-- [x] All existing tests pass (44 original + 5 new = 49 total)
-- [x] New validation tests (PDF magic bytes, file size, image limits)
-- [x] New logging tests (config validation)
-- [x] New cache content tests (write/read content.json, cache hit detection)
-
-### Integration Tests
-- [x] End-to-end sync flow (existing test suite)
-- [ ] End-to-end async flow (Task 6 - pending)
-- [ ] Mixed batch processing (Task 6 - pending)
-
-### Edge Cases
-- [x] Empty PDF (handled by converter)
-- [x] Very large PDF (validated by max_pdf_file_size)
-- [x] Corrupt cache files (graceful fallback implemented)
-- [ ] Network failures during async (Task 6 - pending)
-
----
-
-## Documentation Updates
-
-- [ ] README.md - Add async examples (Task 6 - pending)
-- [ ] README.md - Add logging configuration
-- [ ] README.md - Document new config options
-- [x] docstrings for all new methods (added to _validate_pdf_path, write_content, etc.)
-- [x] Type hints throughout (maintained in all new code)
-
----
-
-## Progress Log
-
-| Date | Task | Notes |
-|------|------|-------|
-| 2026-03-25 | TODO.md created | Initial planning complete |
-| 2026-03-25 | Task 1 | Fixed repair_structured_output candidate parameter with validation |
-| 2026-03-25 | Task 2 | Increased cache hash prefix to 32 characters |
-| 2026-03-25 | Task 3 | Added comprehensive logging throughout analyzer |
-| 2026-03-25 | Task 4 | Added input validation (PDF, images, config) |
-| 2026-03-25 | Task 5 | Added content.json result caching to cache folder |
-| 2026-03-25 | Final | All 49 tests passing |
-| | | |
-| | | |
-
----
-
-*Last updated: 2026-03-25*
+## Definition of Done
+- [ ] Core pipeline does not import or reference Replicate directly.
+- [ ] Replicate support works through adapter implementing provider port.
+- [ ] At least one non-Replicate adapter can be added without changing pipeline/analyzer core.
+- [ ] Tests and docs reflect provider-agnostic architecture.

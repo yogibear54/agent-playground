@@ -74,18 +74,18 @@ Decouple PDF extraction/analyzer logic from Replicate so additional LLM provider
 - [x] Define normalized error contract for provider failures.
 
 ## Phase 2 — Move Replicate logic into an adapter
-- [ ] Create adapter module, e.g. `src/pdf_extractor_analyzer/adapters/llm/replicate_adapter.py`.
-- [ ] Move SDK client construction (`Client`/`AsyncReplicate`) from analyzer into adapter.
-- [ ] Move `run(...)` call behavior and `wait` compatibility fallback into adapter.
-- [ ] Move async fallback (`to_thread` + semaphore) behavior into adapter (or a shared transport policy layer).
-- [ ] Keep existing behavior parity for retries/timeouts/output normalization.
+- [x] Create adapter module, e.g. `src/pdf_extractor_analyzer/adapters/llm/replicate_adapter.py`.
+- [x] Move SDK client construction (`Client`/`AsyncReplicate`) from analyzer into adapter.
+- [x] Move `run(...)` call behavior and `wait` compatibility fallback into adapter.
+- [x] Move async fallback (`to_thread` + semaphore) behavior into adapter (or a shared transport policy layer).
+- [x] Keep existing behavior parity for retries/timeouts/output normalization.
 
 ## Phase 3 — Refactor analyzer into provider-agnostic application service
-- [ ] Replace `ReplicateVisionAnalyzer` with provider-neutral analyzer service.
-- [ ] Inject provider port into analyzer (constructor dependency injection).
-- [ ] Keep prompt-building and JSON extraction/repair logic in core analyzer.
-- [ ] Ensure structured repair flow uses the same provider port (text-only request).
-- [ ] Remove direct `import replicate` from analyzer core.
+- [x] Replace `ReplicateVisionAnalyzer` with provider-neutral analyzer service.
+- [x] Inject provider port into analyzer (constructor dependency injection).
+- [x] Keep prompt-building and JSON extraction/repair logic in core analyzer.
+- [x] Ensure structured repair flow uses the same provider port (text-only request).
+- [x] Remove direct `import replicate` from analyzer core.
 
 ## Phase 4 — Provider factory / composition
 - [ ] Add provider factory/registry to instantiate adapter from config.
@@ -111,8 +111,8 @@ Decouple PDF extraction/analyzer logic from Replicate so additional LLM provider
 
 ## Phase 8 — Tests
 - [x] Add unit tests for provider port contract (sync + async behavior).
-- [ ] Add adapter tests for Replicate adapter behavior parity.
-- [ ] Update analyzer tests to mock provider port (not Replicate client internals).
+- [x] Add adapter tests for Replicate adapter behavior parity.
+- [x] Update analyzer tests to mock provider port (not Replicate client internals).
 - [ ] Update pipeline tests to assert provider appears in metadata/cache params.
 - [ ] Split live integration tests by provider markers (e.g., `live_replicate`, future `live_openai`).
 

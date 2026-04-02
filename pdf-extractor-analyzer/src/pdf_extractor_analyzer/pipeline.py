@@ -11,11 +11,12 @@ from typing import Any, AsyncIterator
 
 from pydantic import BaseModel, ValidationError
 
-from .analyzer import ReplicateVisionAnalyzer
+from .analyzer import VisionAnalyzer
 from .cache import CacheManager, CacheMetadata, compute_content_hash
 from .config import CacheMode, ExtractorConfig
 from .converter import PDFConverter
 from .exceptions import SchemaValidationError, ValidationError
+from .provider_factory import create_llm_provider
 from .schemas import BatchExtractionItem, BatchItemStatus, ExtractionMode, ExtractionResult
 
 # Module logger
@@ -52,7 +53,7 @@ class PDFExtractor:
             mode=self.config.cache_mode,
             ttl_days=self.config.cache_ttl_days,
         )
-        self.analyzer = ReplicateVisionAnalyzer(self.config)
+        self.analyzer = VisionAnalyzer(self.config, provider=create_llm_provider(self.config))
 
     def cleanup_persistent_cache(self) -> int:
         return self.cache.cleanup_expired()

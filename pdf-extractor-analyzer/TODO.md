@@ -88,9 +88,9 @@ Decouple PDF extraction/analyzer logic from Replicate so additional LLM provider
 - [x] Remove direct `import replicate` from analyzer core.
 
 ## Phase 4 — Provider factory / composition
-- [ ] Add provider factory/registry to instantiate adapter from config.
-- [ ] Wire factory into `PDFExtractor` initialization.
-- [ ] Ensure batch worker cloning still shares analyzer/provider safely where intended.
+- [x] Add provider factory/registry to instantiate adapter from config.
+- [x] Wire factory into `PDFExtractor` initialization.
+- [x] Ensure batch worker cloning still shares analyzer/provider safely where intended.
 
 ## Phase 5 — Config refactor
 - [ ] Introduce provider selection field (e.g., `provider="replicate"`).

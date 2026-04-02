@@ -5,6 +5,7 @@ import asyncio
 import importlib
 import json
 import sys
+import warnings
 from pathlib import Path
 
 from pydantic import BaseModel
@@ -140,6 +141,14 @@ def main(argv: list[str] | None = None) -> int:
             if not args.schema_import:
                 parser.error("Structured mode requires --schema-import module:ClassName")
             schema_class = _schema_from_import(args.schema_import)
+
+        if args.max_concurrent_replicate_calls is not None:
+            warnings.warn(
+                "--max-concurrent-replicate-calls is deprecated; "
+                "use --replicate-max-concurrent-calls instead",
+                DeprecationWarning,
+                stacklevel=2,
+            )
 
         replicate_max_calls = (
             args.replicate_max_concurrent_calls

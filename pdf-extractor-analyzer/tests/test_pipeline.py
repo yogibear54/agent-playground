@@ -346,13 +346,13 @@ def test_batch_worker_shares_analyzer():
     This verifies that _run_single_batch_item reuses the analyzer
     instead of creating a new one for each batch item (Issue #5).
     """
-    from pdf_extractor_analyzer.analyzer import ReplicateVisionAnalyzer
+    from pdf_extractor_analyzer.analyzer import VisionAnalyzer
 
     extractor = PDFExtractor(ExtractorConfig())
 
     # Create a simple test - just verify the main analyzer is set
     assert extractor.analyzer is not None
-    assert isinstance(extractor.analyzer, ReplicateVisionAnalyzer)
+    assert isinstance(extractor.analyzer, VisionAnalyzer)
 
 
 def test_batch_processing_analyzer_reuse(monkeypatch, tmp_path):

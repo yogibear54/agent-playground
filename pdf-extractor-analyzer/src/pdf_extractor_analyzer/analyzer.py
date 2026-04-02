@@ -5,6 +5,7 @@ import json
 import logging
 import time
 import uuid
+import warnings
 from typing import Any, Awaitable, Callable
 
 from .adapters.llm import ReplicateLLMAdapter
@@ -528,5 +529,13 @@ class VisionAnalyzer:
         )
 
 
-# Backward-compatible alias; kept during migration.
-ReplicateVisionAnalyzer = VisionAnalyzer
+class ReplicateVisionAnalyzer(VisionAnalyzer):
+    """Deprecated compatibility wrapper for the old analyzer name."""
+
+    def __init__(self, config: ExtractorConfig, provider: LLMProviderPort | None = None):
+        warnings.warn(
+            "ReplicateVisionAnalyzer is deprecated; use VisionAnalyzer instead",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        super().__init__(config, provider=provider)

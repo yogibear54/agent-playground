@@ -124,19 +124,19 @@ Decouple PDF extraction/analyzer logic from Replicate so additional LLM provider
 - [x] Update usage examples for both Python API and CLI.
 
 ## Phase 10 — Migration and rollout
-- [ ] Add changelog notes for config/API changes.
-- [ ] Add deprecation warnings for old Replicate-only fields/names.
-- [ ] Validate no regression in:
-  - [ ] sync extraction
-  - [ ] async extraction
-  - [ ] streaming extraction
-  - [ ] structured repair flow
-  - [ ] caching semantics
+- [x] Add changelog notes for config/API changes.
+- [x] Add deprecation warnings for old Replicate-only fields/names.
+- [x] Validate no regression in:
+  - [x] sync extraction
+  - [x] async extraction
+  - [x] streaming extraction
+  - [x] structured repair flow
+  - [x] caching semantics
 
 ---
 
 ## Definition of Done
-- [ ] Core pipeline does not import or reference Replicate directly.
-- [ ] Replicate support works through adapter implementing provider port.
-- [ ] At least one non-Replicate adapter can be added without changing pipeline/analyzer core.
-- [ ] Tests and docs reflect provider-agnostic architecture.
+- [x] Core pipeline does not import or reference Replicate directly.
+- [x] Replicate support works through adapter implementing provider port.
+- [x] At least one non-Replicate adapter can be added without changing pipeline/analyzer core.
+- [x] Tests and docs reflect provider-agnostic architecture.

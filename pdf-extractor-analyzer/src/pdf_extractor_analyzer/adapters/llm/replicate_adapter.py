@@ -29,7 +29,7 @@ class ReplicateLLMAdapter(LLMProviderPort):
         self.config = config
         self.client = client if client is not None else self._build_client()
         self.async_client = async_client if async_client is not None else self._build_async_client()
-        self._sync_replicate_semaphore = asyncio.Semaphore(config.max_concurrent_replicate_calls)
+        self._sync_replicate_semaphore = asyncio.Semaphore(config.get_replicate_max_concurrent_calls())
 
     @property
     def provider_name(self) -> str:
@@ -78,8 +78,9 @@ class ReplicateLLMAdapter(LLMProviderPort):
             raise self._to_provider_error(exc, model=request.model) from exc
 
     def _build_client(self) -> Any:
-        if self.config.replicate_api_token:
-            return replicate.Client(api_token=self.config.replicate_api_token)
+        token = self.config.get_replicate_api_token()
+        if token:
+            return replicate.Client(api_token=token)
         return replicate.Client()
 
     def _build_async_client(self) -> Any | None:
@@ -92,7 +93,7 @@ class ReplicateLLMAdapter(LLMProviderPort):
         if async_cls is None:
             return None
 
-        token = self.config.replicate_api_token
+        token = self.config.get_replicate_api_token()
         kwargs: dict[str, Any] = {}
         if token:
             kwargs["bearer_token"] = token

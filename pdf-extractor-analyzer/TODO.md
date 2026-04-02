@@ -93,10 +93,10 @@ Decouple PDF extraction/analyzer logic from Replicate so additional LLM provider
 - [x] Ensure batch worker cloning still shares analyzer/provider safely where intended.
 
 ## Phase 5 — Config refactor
-- [ ] Introduce provider selection field (e.g., `provider="replicate"`).
-- [ ] Introduce provider-specific config grouping (replicate settings separated from generic LLM settings).
-- [ ] Preserve current fields with deprecation shims where needed (`replicate_api_token`, `max_concurrent_replicate_calls`).
-- [ ] Update config validation to enforce provider-specific requirements.
+- [x] Introduce provider selection field (e.g., `provider="replicate"`).
+- [x] Introduce provider-specific config grouping (replicate settings separated from generic LLM settings).
+- [x] Preserve current fields with deprecation shims where needed (`replicate_api_token`, `max_concurrent_replicate_calls`).
+- [x] Update config validation to enforce provider-specific requirements.
 
 ## Phase 6 — Pipeline/cache/metadata updates
 - [ ] Include provider identity in extraction params used for cache invalidation.

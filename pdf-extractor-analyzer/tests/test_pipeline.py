@@ -1,3 +1,4 @@
+import asyncio
 from pathlib import Path
 
 import pytest
@@ -108,6 +109,63 @@ def test_extract_markdown_saves_md_file(monkeypatch, make_pdf, tmp_path):
     md_content = content_md.read_text()
     assert "Page 1" in md_content
     assert "Page 2" in md_content
+
+
+def test_extract_async_partial_failures_preserve_page_order(monkeypatch, make_pdf):
+    pdf_path = make_pdf("doc-async.pdf", pages=1)
+    extractor = PDFExtractor(ExtractorConfig(cache_mode=CacheMode.DISABLED, max_concurrent_pages=3))
+
+    pages = [
+        PageImage(page_number=1, width=100, height=100, image_bytes=b"1", image_path=None),
+        PageImage(page_number=2, width=100, height=100, image_bytes=b"2", image_path=None),
+        PageImage(page_number=3, width=100, height=100, image_bytes=b"3", image_path=None),
+    ]
+    monkeypatch.setattr(PDFExtractor, "_prepare_pages", lambda *args, **kwargs: pages)
+
+    async def fake_analyze_page_async(**kwargs):
+        page_number = kwargs["page_number"]
+        if page_number == 1:
+            await asyncio.sleep(0.02)
+            return "one"
+        if page_number == 2:
+            raise RuntimeError("page failed")
+        return "three"
+
+    monkeypatch.setattr(extractor.analyzer, "analyze_page_async", fake_analyze_page_async)
+
+    result = asyncio.run(extractor.extract_async(pdf_path, mode=ExtractionMode.SUMMARY))
+    assert result.content == "Page 1: one\nPage 3: three"
+    assert result.metadata["partial_failure"] is True
+    assert len(result.metadata["page_errors"]) == 1
+    assert result.metadata["page_errors"][0]["page"] == 2
+
+
+def test_extract_streaming_emits_page_order(monkeypatch, make_pdf):
+    pdf_path = make_pdf("doc-streaming.pdf", pages=1)
+    extractor = PDFExtractor(ExtractorConfig(cache_mode=CacheMode.DISABLED, max_concurrent_pages=2))
+
+    monkeypatch.setattr(PDFExtractor, "_prepare_pages", lambda *args, **kwargs: _fake_pages())
+
+    async def fake_analyze_page_async(**kwargs):
+        page_number = kwargs["page_number"]
+        if page_number == 1:
+            await asyncio.sleep(0.02)
+            return "first"
+        await asyncio.sleep(0)
+        return "second"
+
+    monkeypatch.setattr(extractor.analyzer, "analyze_page_async", fake_analyze_page_async)
+
+    async def collect():
+        items = []
+        async for event in extractor.extract_streaming(pdf_path, mode=ExtractionMode.FULL_TEXT):
+            items.append(event)
+        return items
+
+    streamed = asyncio.run(collect())
+    assert [item[0] for item in streamed] == [1, 2]
+    assert streamed[0][1] == "first"
+    assert streamed[1][1] == "second"
 
 
 # Import_REMOVED test_extract_structured_validation_repair:

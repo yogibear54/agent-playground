@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, AsyncIterator
 
 from pydantic import BaseModel, ValidationError
 
@@ -19,6 +20,25 @@ from .schemas import BatchExtractionItem, BatchItemStatus, ExtractionMode, Extra
 
 # Module logger
 logger = logging.getLogger(__name__)
+
+
+class AsyncRateLimiter:
+    """Simple per-document async rate limiter."""
+
+    def __init__(self, requests_per_second: float):
+        self._min_interval = 1.0 / requests_per_second
+        self._lock = asyncio.Lock()
+        self._next_allowed = 0.0
+
+    async def acquire(self) -> None:
+        async with self._lock:
+            loop = asyncio.get_running_loop()
+            now = loop.time()
+            wait_for = self._next_allowed - now
+            if wait_for > 0:
+                await asyncio.sleep(wait_for)
+                now = loop.time()
+            self._next_allowed = now + self._min_interval
 
 
 class PDFExtractor:
@@ -36,6 +56,11 @@ class PDFExtractor:
 
     def cleanup_persistent_cache(self) -> int:
         return self.cache.cleanup_expired()
+
+    def _cache_metadata(self, **kwargs: Any) -> CacheMetadata:
+        metadata = CacheMetadata(**kwargs)
+        metadata.image_max_long_edge = self.config.image_max_long_edge
+        return metadata
 
     def extract_many(
         self,
@@ -81,24 +106,82 @@ class PDFExtractor:
 
         return [item for item in results if item is not None]
 
+    def _make_worker(self) -> PDFExtractor:
+        """Create an isolated worker sharing analyzer but with independent cache manager."""
+        worker = PDFExtractor.__new__(PDFExtractor)
+        worker.config = self.config
+        worker.analyzer = self.analyzer
+        worker.converter = PDFConverter()
+        worker.cache = CacheManager(
+            base_cache_dir=self.config.cache_dir,
+            mode=self.config.cache_mode,
+            ttl_days=self.config.cache_ttl_days,
+        )
+        return worker
+
     def _run_single_batch_item(
         self,
         path: Path,
         mode: ExtractionMode,
         schema: type[BaseModel] | None,
     ) -> ExtractionResult:
-        # Create per-thread worker that shares the analyzer (expensive API calls)
-        # but has its own converter and cache manager for thread safety
-        worker = PDFExtractor.__new__(PDFExtractor)
-        worker.config = self.config
-        worker.analyzer = self.analyzer  # Share the analyzer across workers
-        worker.converter = PDFConverter()  # New converter per worker (thread-safe)
-        worker.cache = CacheManager(  # New cache per worker (thread-safe)
-            base_cache_dir=self.config.cache_dir,
-            mode=self.config.cache_mode,
-            ttl_days=self.config.cache_ttl_days,
-        )
+        worker = self._make_worker()
         return worker.extract(path, mode=mode, schema=schema)
+
+    async def _run_single_batch_item_async(
+        self,
+        path: Path,
+        mode: ExtractionMode,
+        schema: type[BaseModel] | None,
+    ) -> ExtractionResult:
+        worker = self._make_worker()
+        return await worker.extract_async(path, mode=mode, schema=schema)
+
+    async def extract_many_async(
+        self,
+        pdf_paths: list[str | Path],
+        *,
+        mode: ExtractionMode,
+        schema: type[BaseModel] | None = None,
+        max_workers: int = 4,
+        continue_on_error: bool = True,
+    ) -> list[BatchExtractionItem]:
+        if max_workers < 1:
+            raise ValueError("max_workers must be >= 1")
+        if not pdf_paths:
+            return []
+
+        normalized_paths = [Path(p).expanduser().resolve() for p in pdf_paths]
+        semaphore = asyncio.Semaphore(max_workers)
+
+        async def process(idx: int, path: Path) -> tuple[int, BatchExtractionItem]:
+            async with semaphore:
+                try:
+                    result = await self._run_single_batch_item_async(path, mode, schema)
+                    item = BatchExtractionItem(
+                        pdf_path=str(path),
+                        status=BatchItemStatus.SUCCESS,
+                        result=result,
+                    )
+                except Exception as exc:
+                    if not continue_on_error:
+                        raise
+                    item = BatchExtractionItem(
+                        pdf_path=str(path),
+                        status=BatchItemStatus.ERROR,
+                        error=str(exc),
+                    )
+                return idx, item
+
+        tasks = [asyncio.create_task(process(idx, path)) for idx, path in enumerate(normalized_paths)]
+
+        if continue_on_error:
+            completed = await asyncio.gather(*tasks)
+        else:
+            completed = await asyncio.gather(*tasks)
+
+        ordered = [item for _, item in sorted(completed, key=lambda entry: entry[0])]
+        return ordered
 
     def _validate_pdf_path(self, path: Path) -> None:
         """Validate PDF path for security and format compliance.
@@ -302,27 +385,218 @@ class PDFExtractor:
         finally:
             self.cache.cleanup()
 
+    async def extract_async(
+        self,
+        pdf_path: str | Path,
+        *,
+        mode: ExtractionMode,
+        schema: type[BaseModel] | None = None,
+    ) -> ExtractionResult:
+        path = Path(pdf_path).expanduser().resolve()
+        self._validate_pdf_path(path)
+
+        if mode == ExtractionMode.STRUCTURED and schema is None:
+            raise ValueError("Structured mode requires a Pydantic schema class")
+
+        source_hash = compute_content_hash(path)
+        schema_json = schema.model_json_schema() if schema is not None else None
+        extraction_params = self._get_extraction_params(mode, schema)
+
+        work_dir = self.cache.resolve_work_dir(source_hash)
+
+        if (
+            self.config.cache_mode == CacheMode.PERSISTENT
+            and work_dir is not None
+            and not self.config.force_conversion
+        ):
+            cached_content = self.cache.read_content(work_dir)
+            if cached_content is not None and cached_content.get("extraction_params", {}) == extraction_params:
+                return ExtractionResult(
+                    extraction_mode=mode,
+                    content=cached_content["content"],
+                    metadata={
+                        "source_hash": source_hash,
+                        "page_count": cached_content.get("page_count", 0),
+                        "model": self.config.model,
+                        "cache_mode": self.config.cache_mode.value,
+                        "generated_at": cached_content.get("cached_at"),
+                        "from_cache": True,
+                    },
+                )
+
+        correlation_id = str(uuid.uuid4())[:8]
+
+        try:
+            pages = self._prepare_pages(path=path, source_hash=source_hash, work_dir=work_dir)
+            semaphore = asyncio.Semaphore(self.config.max_concurrent_pages)
+            rate_limiter = AsyncRateLimiter(self.config.async_requests_per_second)
+
+            async def process_page(page_index: int, image_bytes: bytes) -> tuple[int, str | dict[str, Any] | None, str | None]:
+                async with semaphore:
+                    try:
+                        output = await self.analyzer.analyze_page_async(
+                            image_bytes=image_bytes,
+                            mode=mode,
+                            structured_schema=schema_json,
+                            correlation_id=correlation_id,
+                            page_number=page_index,
+                            rate_limit_coro=rate_limiter.acquire,
+                        )
+                        return page_index, output, None
+                    except Exception as exc:
+                        return page_index, None, str(exc)
+
+            tasks = [
+                asyncio.create_task(process_page(page.page_number, page.image_bytes))
+                for page in pages
+            ]
+            completed = await asyncio.gather(*tasks)
+            completed.sort(key=lambda entry: entry[0])
+
+            page_numbers: list[int] = []
+            page_outputs: list[str | dict[str, Any]] = []
+            page_errors: list[dict[str, Any]] = []
+            for page_number, output, error in completed:
+                if error is not None:
+                    page_errors.append({"page": page_number, "error": error})
+                    continue
+                if output is not None:
+                    page_numbers.append(page_number)
+                    page_outputs.append(output)
+
+            schema_validation_error: str | None = None
+            try:
+                content = await self._aggregate_outputs_async(
+                    outputs=page_outputs,
+                    mode=mode,
+                    schema=schema,
+                    schema_json=schema_json,
+                    page_numbers=page_numbers,
+                )
+            except SchemaValidationError as exc:
+                if mode != ExtractionMode.STRUCTURED:
+                    raise
+                schema_validation_error = str(exc)
+                content = self._merge_dicts([value for value in page_outputs if isinstance(value, dict)])
+
+            metadata: dict[str, Any] = {
+                "source_hash": source_hash,
+                "page_count": len(pages),
+                "successful_pages": len(page_outputs),
+                "model": self.config.model,
+                "cache_mode": self.config.cache_mode.value,
+                "generated_at": datetime.now(UTC).isoformat(),
+                "correlation_id": correlation_id,
+            }
+            if page_errors:
+                metadata["partial_failure"] = True
+                metadata["page_errors"] = page_errors
+            if schema_validation_error is not None:
+                metadata["schema_validation_error"] = schema_validation_error
+
+            result = ExtractionResult(
+                extraction_mode=mode,
+                content=content,
+                metadata=metadata,
+            )
+
+            if (
+                self.config.cache_mode == CacheMode.PERSISTENT
+                and work_dir is not None
+                and not page_errors
+            ):
+                self.cache.write_content(
+                    work_dir,
+                    content if isinstance(content, (str, dict)) else json.loads(json.dumps(content)),
+                    extraction_params,
+                )
+                if mode == ExtractionMode.MARKDOWN and isinstance(content, str):
+                    self.cache.content_md_path(work_dir).write_text(content, encoding="utf-8")
+
+            return result
+        finally:
+            self.cache.cleanup()
+
+    async def extract_streaming(
+        self,
+        pdf_path: str | Path,
+        *,
+        mode: ExtractionMode,
+        schema: type[BaseModel] | None = None,
+    ) -> AsyncIterator[tuple[int, str | dict[str, Any] | None, str | None]]:
+        path = Path(pdf_path).expanduser().resolve()
+        self._validate_pdf_path(path)
+
+        if mode == ExtractionMode.STRUCTURED and schema is None:
+            raise ValueError("Structured mode requires a Pydantic schema class")
+
+        source_hash = compute_content_hash(path)
+        schema_json = schema.model_json_schema() if schema is not None else None
+        work_dir = self.cache.resolve_work_dir(source_hash)
+        correlation_id = str(uuid.uuid4())[:8]
+
+        try:
+            pages = self._prepare_pages(path=path, source_hash=source_hash, work_dir=work_dir)
+            semaphore = asyncio.Semaphore(self.config.max_concurrent_pages)
+            rate_limiter = AsyncRateLimiter(self.config.async_requests_per_second)
+
+            async def process_page(page_index: int, image_bytes: bytes) -> tuple[int, str | dict[str, Any] | None, str | None]:
+                async with semaphore:
+                    try:
+                        output = await self.analyzer.analyze_page_async(
+                            image_bytes=image_bytes,
+                            mode=mode,
+                            structured_schema=schema_json,
+                            correlation_id=correlation_id,
+                            page_number=page_index,
+                            rate_limit_coro=rate_limiter.acquire,
+                        )
+                        return page_index, output, None
+                    except Exception as exc:
+                        return page_index, None, str(exc)
+
+            tasks = [
+                asyncio.create_task(process_page(page.page_number, page.image_bytes))
+                for page in pages
+            ]
+
+            pending: dict[int, tuple[str | dict[str, Any] | None, str | None]] = {}
+            next_page = 1
+
+            for task in asyncio.as_completed(tasks):
+                page_number, output, error = await task
+                pending[page_number] = (output, error)
+
+                while next_page in pending:
+                    next_output, next_error = pending.pop(next_page)
+                    yield next_page, next_output, next_error
+                    next_page += 1
+        finally:
+            self.cache.cleanup()
+
     def _prepare_pages(self, *, path: Path, source_hash: str, work_dir: Path | None):
         if self.config.cache_mode == CacheMode.PERSISTENT and work_dir is not None:
             if not self.config.force_conversion and self.cache.is_cache_hit(
                 work_dir,
-                source_hash=source_hash,
-                dpi=self.config.dpi,
-                max_pages=self.config.max_pages,
+                source_hash,
+                self.config.dpi,
+                self.config.max_pages,
+                self.config.image_max_long_edge,
             ):
                 return self.converter.load_from_dir(work_dir)
 
             pages = self.converter.convert(
                 path,
-                dpi=self.config.dpi,
-                output_dir=work_dir,
-                max_pages=self.config.max_pages,
-                max_image_width=self.config.max_image_width,
-                max_image_height=self.config.max_image_height,
+                self.config.dpi,
+                work_dir,
+                self.config.max_pages,
+                self.config.image_max_long_edge,
+                self.config.max_image_width,
+                self.config.max_image_height,
             )
             self.cache.write_metadata(
                 work_dir,
-                CacheMetadata(
+                self._cache_metadata(
                     page_count=len(pages),
                     dpi=self.config.dpi,
                     created_at=datetime.now(UTC).isoformat(),
@@ -334,11 +608,12 @@ class PDFExtractor:
 
         return self.converter.convert(
             path,
-            dpi=self.config.dpi,
-            output_dir=work_dir,
-            max_pages=self.config.max_pages,
-            max_image_width=self.config.max_image_width,
-            max_image_height=self.config.max_image_height,
+            self.config.dpi,
+            work_dir,
+            self.config.max_pages,
+            self.config.image_max_long_edge,
+            self.config.max_image_width,
+            self.config.max_image_height,
         )
 
     def _aggregate_outputs(
@@ -348,17 +623,20 @@ class PDFExtractor:
         mode: ExtractionMode,
         schema: type[BaseModel] | None,
         schema_json: dict[str, Any] | None,
+        page_numbers: list[int] | None = None,
     ) -> str | dict[str, Any]:
+        numbers = page_numbers or list(range(1, len(outputs) + 1))
+
         if mode == ExtractionMode.FULL_TEXT:
-            chunks = [f"[Page {idx}]\n{value}" for idx, value in enumerate(outputs, start=1)]
+            chunks = [f"[Page {numbers[idx]}]\n{value}" for idx, value in enumerate(outputs)]
             return "\n\n".join(chunks)
 
         if mode == ExtractionMode.SUMMARY:
-            chunks = [f"Page {idx}: {value}" for idx, value in enumerate(outputs, start=1)]
+            chunks = [f"Page {numbers[idx]}: {value}" for idx, value in enumerate(outputs)]
             return "\n".join(chunks)
 
         if mode == ExtractionMode.MARKDOWN:
-            chunks = [f"## Page {idx}\n\n{value}" for idx, value in enumerate(outputs, start=1)]
+            chunks = [f"## Page {numbers[idx]}\n\n{value}" for idx, value in enumerate(outputs)]
             return "\n\n---\n\n".join(chunks)
 
         structured_outputs = [value for value in outputs if isinstance(value, dict)]
@@ -372,6 +650,52 @@ class PDFExtractor:
             return validated.model_dump()
         except ValidationError as exc:
             repaired = self.analyzer.repair_structured_output(
+                candidate=merged,
+                validation_error=str(exc),
+                structured_schema=schema_json,
+            )
+            try:
+                validated = schema.model_validate(repaired)
+                return validated.model_dump()
+            except ValidationError as second_exc:
+                raise SchemaValidationError(
+                    "Structured output failed schema validation after repair"
+                ) from second_exc
+
+    async def _aggregate_outputs_async(
+        self,
+        *,
+        outputs: list[str | dict[str, Any]],
+        mode: ExtractionMode,
+        schema: type[BaseModel] | None,
+        schema_json: dict[str, Any] | None,
+        page_numbers: list[int] | None = None,
+    ) -> str | dict[str, Any]:
+        numbers = page_numbers or list(range(1, len(outputs) + 1))
+
+        if mode == ExtractionMode.FULL_TEXT:
+            chunks = [f"[Page {numbers[idx]}]\n{value}" for idx, value in enumerate(outputs)]
+            return "\n\n".join(chunks)
+
+        if mode == ExtractionMode.SUMMARY:
+            chunks = [f"Page {numbers[idx]}: {value}" for idx, value in enumerate(outputs)]
+            return "\n".join(chunks)
+
+        if mode == ExtractionMode.MARKDOWN:
+            chunks = [f"## Page {numbers[idx]}\n\n{value}" for idx, value in enumerate(outputs)]
+            return "\n\n---\n\n".join(chunks)
+
+        structured_outputs = [value for value in outputs if isinstance(value, dict)]
+        merged = self._merge_dicts(structured_outputs)
+
+        if schema is None:
+            return merged
+
+        try:
+            validated = schema.model_validate(merged)
+            return validated.model_dump()
+        except ValidationError as exc:
+            repaired = await self.analyzer.repair_structured_output_async(
                 candidate=merged,
                 validation_error=str(exc),
                 structured_schema=schema_json,

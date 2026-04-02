@@ -1,3 +1,4 @@
+import asyncio
 import json
 
 import pytest
@@ -13,8 +14,7 @@ class FakeClient:
         self.outputs_or_exc = list(outputs_or_exc)
         self.calls = []
 
-    def run(self, model, input, wait=None):
-        self.calls.append({"model": model, "input": input, "wait": wait})
+    def _next(self):
         if not self.outputs_or_exc:
             raise RuntimeError("no output configured")
         item = self.outputs_or_exc.pop(0)
@@ -22,11 +22,21 @@ class FakeClient:
             raise item
         return item
 
+    def run(self, model, input, wait=None):
+        self.calls.append({"model": model, "input": input, "wait": wait, "async": False})
+        return self._next()
+
+    async def async_run(self, model, input, wait=None):
+        self.calls.append({"model": model, "input": input, "wait": wait, "async": True})
+        await asyncio.sleep(0)
+        return self._next()
+
 
 def _make_analyzer_with_client(client: FakeClient, config: ExtractorConfig | None = None):
     cfg = config or ExtractorConfig(max_retries=2, retry_backoff_seconds=0)
     analyzer = ReplicateVisionAnalyzer(cfg)
     analyzer.client = client
+    analyzer.async_client = None
     return analyzer
 
 
@@ -233,3 +243,35 @@ def test_analyze_page_validates_image_bytes_type():
             image_bytes="not bytes",  # type: ignore
             mode=ExtractionMode.FULL_TEXT,
         )
+
+
+def test_analyze_page_async_without_async_replicate_uses_client_run_via_thread():
+    """When AsyncReplicate is unavailable, async API uses sync client.run in a thread (not async_run)."""
+    client = FakeClient(["async output"])
+    analyzer = _make_analyzer_with_client(client)
+
+    output = asyncio.run(
+        analyzer.analyze_page_async(image_bytes=b"img", mode=ExtractionMode.FULL_TEXT)
+    )
+
+    assert output == "async output"
+    assert client.calls[0]["async"] is False
+
+
+def test_run_with_retries_async_uses_fallback_model():
+    config = ExtractorConfig(
+        model="primary/model",
+        fallback_model="fallback/model",
+        max_retries=2,
+        retry_backoff_seconds=0,
+    )
+    client = FakeClient([RuntimeError("fail"), RuntimeError("fail"), "ok-from-fallback"])
+    analyzer = _make_analyzer_with_client(client, config)
+
+    output = asyncio.run(analyzer.analyze_page_async(image_bytes=b"img", mode=ExtractionMode.SUMMARY))
+    assert output == "ok-from-fallback"
+    assert [call["model"] for call in client.calls] == [
+        "primary/model",
+        "primary/model",
+        "fallback/model",
+    ]

@@ -70,6 +70,13 @@ def test_config_validates_image_limits():
     config = ExtractorConfig()
     config.validate()
 
+    config = ExtractorConfig(image_max_long_edge=2048)
+    config.validate()
+
+    config = ExtractorConfig(image_max_long_edge=0)
+    with pytest.raises(ValueError, match="image_max_long_edge must be > 0 or None"):
+        config.validate()
+
     # Invalid max_image_width
     config = ExtractorConfig()
     config.max_image_width = 0
@@ -110,6 +117,8 @@ def test_config_validates_log_level():
         ("max_retries", 0, "max_retries must be >= 1"),
         ("retry_backoff_seconds", -0.1, "retry_backoff_seconds cannot be negative"),
         ("timeout_seconds", 0, "timeout_seconds must be > 0"),
+        ("max_concurrent_pages", 0, "max_concurrent_pages must be > 0"),
+        ("async_requests_per_second", 0.0, "async_requests_per_second must be > 0"),
     ],
 )
 def test_config_validation_errors(field, value, message):
@@ -151,6 +160,8 @@ def test_config_model_params_defaults():
     assert config.top_p == 1.0
     assert config.presence_penalty == 0.0
     assert config.frequency_penalty == 0.0
+    assert config.max_concurrent_pages == 4
+    assert config.async_requests_per_second == 8.0
 
 
 def test_config_model_params_custom_values():
@@ -161,6 +172,8 @@ def test_config_model_params_custom_values():
         top_p=0.9,
         presence_penalty=0.5,
         frequency_penalty=0.5,
+        max_concurrent_pages=8,
+        async_requests_per_second=12.5,
     )
     config.validate()  # Should not raise
 
@@ -169,3 +182,5 @@ def test_config_model_params_custom_values():
     assert config.top_p == 0.9
     assert config.presence_penalty == 0.5
     assert config.frequency_penalty == 0.5
+    assert config.max_concurrent_pages == 8
+    assert config.async_requests_per_second == 12.5

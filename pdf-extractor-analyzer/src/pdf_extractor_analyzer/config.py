@@ -27,7 +27,12 @@ class ExtractorConfig:
     retry_backoff_seconds: float = 1.0
     timeout_seconds: int = 60
 
+    # Async processing controls
+    max_concurrent_pages: int = 4
+    async_requests_per_second: float = 8.0
+
     # Input validation limits
+    image_max_long_edge: int | None = None
     max_image_width: int = 8000
     max_image_height: int = 8000
     max_image_bytes: int = 20_971_520  # 20MB
@@ -54,6 +59,12 @@ class ExtractorConfig:
             raise ValueError("retry_backoff_seconds cannot be negative")
         if self.timeout_seconds <= 0:
             raise ValueError("timeout_seconds must be > 0")
+        if self.max_concurrent_pages <= 0:
+            raise ValueError("max_concurrent_pages must be > 0")
+        if self.async_requests_per_second <= 0:
+            raise ValueError("async_requests_per_second must be > 0")
+        if self.image_max_long_edge is not None and self.image_max_long_edge <= 0:
+            raise ValueError("image_max_long_edge must be > 0 or None")
         if self.max_image_width <= 0:
             raise ValueError("max_image_width must be > 0")
         if self.max_image_height <= 0:

@@ -46,10 +46,12 @@ def test_cache_hit_requires_metadata_match(tmp_path: Path):
         ),
     )
 
-    assert manager.is_cache_hit(work_dir, source_hash=source_hash, dpi=150, max_pages=None)
-    assert not manager.is_cache_hit(work_dir, source_hash=source_hash, dpi=200, max_pages=None)
-    assert not manager.is_cache_hit(work_dir, source_hash=source_hash, dpi=150, max_pages=1)
-    assert not manager.is_cache_hit(work_dir, source_hash="b" * 64, dpi=150, max_pages=None)
+    assert manager.is_cache_hit(work_dir, source_hash, 150, None, None)
+    assert not manager.is_cache_hit(work_dir, source_hash, 200, None, None)
+    assert not manager.is_cache_hit(work_dir, source_hash, 150, 1, None)
+    assert not manager.is_cache_hit(work_dir, "b" * 64, 150, None, None)
+
+    assert not manager.is_cache_hit(work_dir, source_hash, 150, None, 2048)
 
 
 def test_invalid_metadata_returns_cache_miss(tmp_path: Path):
@@ -61,7 +63,7 @@ def test_invalid_metadata_returns_cache_miss(tmp_path: Path):
     (work_dir / "page_001.png").write_bytes(b"img")
     (work_dir / "metadata.json").write_text("not-json", encoding="utf-8")
 
-    assert manager.is_cache_hit(work_dir, source_hash=source_hash, dpi=150, max_pages=None) is False
+    assert manager.is_cache_hit(work_dir, source_hash, 150, None, None) is False
 
 
 def test_cleanup_expired_removes_old_entries(tmp_path: Path):

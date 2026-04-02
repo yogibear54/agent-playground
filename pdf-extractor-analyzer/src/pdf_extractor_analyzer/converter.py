@@ -23,10 +23,10 @@ class PDFConverter:
     def convert(
         self,
         pdf_path: Path,
-        *,
         dpi: int,
         output_dir: Path | None,
         max_pages: int | None = None,
+        image_max_long_edge: int | None = None,
         max_image_width: int | None = None,
         max_image_height: int | None = None,
     ) -> list[PageImage]:
@@ -48,12 +48,20 @@ class PDFConverter:
             if output_dir is not None:
                 output_dir.mkdir(parents=True, exist_ok=True)
 
-            matrix = fitz.Matrix(dpi / 72, dpi / 72)
             pages: list[PageImage] = []
 
             for index in range(total_pages):
                 page = doc[index]
-                pix = page.get_pixmap(matrix=matrix)
+                base_scale = dpi / 72
+                scale = base_scale
+                if image_max_long_edge is not None:
+                    rw = page.rect.width * base_scale
+                    rh = page.rect.height * base_scale
+                    longest = max(rw, rh)
+                    if longest > image_max_long_edge and longest > 0:
+                        scale = base_scale * (image_max_long_edge / longest)
+
+                pix = page.get_pixmap(matrix=fitz.Matrix(scale, scale))
 
                 # Validate image dimensions
                 if max_image_width is not None and pix.width > max_image_width:

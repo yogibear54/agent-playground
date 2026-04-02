@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+import asyncio
 import base64
 import json
 import logging
 import time
 import uuid
-from typing import Any
+from typing import Any, Awaitable, Callable
 
 import replicate
 
@@ -17,6 +18,15 @@ from .schemas import ExtractionMode
 logger = logging.getLogger(__name__)
 
 
+def _format_last_error(exc: BaseException | None) -> str:
+    if exc is None:
+        return "unknown error"
+    text = str(exc).strip()
+    if text:
+        return text
+    return type(exc).__name__
+
+
 class ReplicateVisionAnalyzer:
     def __init__(self, config: ExtractorConfig):
         self.config = config
@@ -24,10 +34,41 @@ class ReplicateVisionAnalyzer:
             self.client = replicate.Client(api_token=config.replicate_api_token)
         else:
             self.client = replicate.Client()
-        
+
+        self.async_client = self._build_async_client()
+
+        # Serialize sync client.run when used from async (to_thread). Parallel uploads of large
+        # image payloads share bandwidth and hit httpx WriteTimeout; sync extract is sequential.
+        self._sync_replicate_lock = asyncio.Lock()
+
         # Setup logger with configured level
         self._logger = logging.getLogger(f"{__name__}.ReplicateVisionAnalyzer")
         self._logger.setLevel(getattr(logging, config.log_level.upper()))
+
+    def _build_async_client(self) -> Any | None:
+        """Build AsyncReplicate client when available.
+
+        When AsyncReplicate is missing, async extraction uses sync ``client.run``
+        in a thread, serialized with a lock (see ``_run_model_async``).
+        """
+        async_cls = getattr(replicate, "AsyncReplicate", None)
+        if async_cls is None:
+            return None
+
+        token = self.config.replicate_api_token
+        kwargs: dict[str, Any] = {}
+        if token:
+            kwargs["bearer_token"] = token
+
+        try:
+            return async_cls(**kwargs)
+        except TypeError:
+            if token:
+                try:
+                    return async_cls(api_token=token)
+                except TypeError:
+                    return async_cls()
+            return async_cls()
 
     def _validate_image_bytes(self, image_bytes: bytes) -> None:
         """Validate image bytes for size limits.
@@ -62,19 +103,19 @@ class ReplicateVisionAnalyzer:
         page_number: int | None = None,
     ) -> str | dict[str, Any]:
         """Analyze a single page image.
-        
+
         Args:
             image_bytes: The image data to analyze
             mode: The extraction mode to use
             structured_schema: Optional schema for structured extraction
             correlation_id: Optional ID for tracking related operations
             page_number: Optional page number for logging context
-            
+
         Returns:
             Extracted content as string or dict
         """
         self._validate_image_bytes(image_bytes)
-        
+
         # Generate correlation ID if not provided
         cid = correlation_id or str(uuid.uuid4())[:8]
         extra = {
@@ -83,34 +124,88 @@ class ReplicateVisionAnalyzer:
             "mode": mode.value,
             "model": self.config.model,
         }
-        
+
         self._logger.info("Starting page analysis", extra=extra)
         start_time = time.time()
 
         prompt = self._build_prompt(mode=mode, structured_schema=structured_schema)
-        
+
         try:
             raw = self._run_with_retries(
-                prompt=prompt, 
+                prompt=prompt,
                 image_bytes=image_bytes,
                 correlation_id=cid,
                 page_number=page_number,
             )
-            
+
             duration_ms = (time.time() - start_time) * 1000
             self._logger.info(
                 "Page analysis completed successfully",
                 extra={**extra, "duration_ms": round(duration_ms, 2)},
             )
-            
+
             if mode == ExtractionMode.STRUCTURED:
                 return self._extract_json_object(raw)
             return raw.strip()
-            
+
         except AnalysisError:
             duration_ms = (time.time() - start_time) * 1000
             self._logger.error(
                 "Page analysis failed after all retries",
+                extra={**extra, "duration_ms": round(duration_ms, 2)},
+                exc_info=True,
+            )
+            raise
+
+    async def analyze_page_async(
+        self,
+        *,
+        image_bytes: bytes,
+        mode: ExtractionMode,
+        structured_schema: dict[str, Any] | None = None,
+        correlation_id: str | None = None,
+        page_number: int | None = None,
+        rate_limit_coro: Callable[[], Awaitable[None]] | None = None,
+    ) -> str | dict[str, Any]:
+        """Analyze a single page image asynchronously."""
+        self._validate_image_bytes(image_bytes)
+
+        cid = correlation_id or str(uuid.uuid4())[:8]
+        extra = {
+            "correlation_id": cid,
+            "page_number": page_number,
+            "mode": mode.value,
+            "model": self.config.model,
+        }
+
+        self._logger.info("Starting async page analysis", extra=extra)
+        start_time = time.time()
+
+        prompt = self._build_prompt(mode=mode, structured_schema=structured_schema)
+
+        try:
+            raw = await self._run_with_retries_async(
+                prompt=prompt,
+                image_bytes=image_bytes,
+                correlation_id=cid,
+                page_number=page_number,
+                rate_limit_coro=rate_limit_coro,
+            )
+
+            duration_ms = (time.time() - start_time) * 1000
+            self._logger.info(
+                "Async page analysis completed successfully",
+                extra={**extra, "duration_ms": round(duration_ms, 2)},
+            )
+
+            if mode == ExtractionMode.STRUCTURED:
+                return self._extract_json_object(raw)
+            return raw.strip()
+
+        except AnalysisError:
+            duration_ms = (time.time() - start_time) * 1000
+            self._logger.error(
+                "Async page analysis failed after all retries",
                 extra={**extra, "duration_ms": round(duration_ms, 2)},
                 exc_info=True,
             )
@@ -125,18 +220,18 @@ class ReplicateVisionAnalyzer:
         correlation_id: str | None = None,
     ) -> dict[str, Any]:
         """Repair structured output that failed validation.
-        
+
         Args:
             candidate: The invalid output to repair
             validation_error: The validation error message
             structured_schema: The expected schema
             correlation_id: Optional ID for tracking
-            
+
         Returns:
             Repaired valid JSON dict
         """
         cid = correlation_id or str(uuid.uuid4())[:8]
-        
+
         if not isinstance(candidate, dict):
             raise AnalysisError(f"candidate must be a dict, got {type(candidate).__name__}")
 
@@ -155,7 +250,7 @@ class ReplicateVisionAnalyzer:
             extra={
                 "correlation_id": cid,
                 "candidate_size": len(candidate_json),
-                "validation_error": validation_error[:200],  # Truncate for log
+                "validation_error": validation_error[:200],
             },
         )
 
@@ -169,15 +264,15 @@ class ReplicateVisionAnalyzer:
             f"Candidate JSON to repair:\n{candidate_json}\n\n"
             "Return only the corrected JSON."
         )
-        
+
         start_time = time.time()
         repaired = self._run_with_retries(
-            prompt=prompt, 
+            prompt=prompt,
             image_bytes=None,
             correlation_id=cid,
         )
         duration_ms = (time.time() - start_time) * 1000
-        
+
         self._logger.info(
             "Structured output repair completed",
             extra={
@@ -185,7 +280,50 @@ class ReplicateVisionAnalyzer:
                 "duration_ms": round(duration_ms, 2),
             },
         )
-        
+
+        return self._extract_json_object(repaired)
+
+    async def repair_structured_output_async(
+        self,
+        *,
+        candidate: dict[str, Any],
+        validation_error: str,
+        structured_schema: dict[str, Any] | None,
+        correlation_id: str | None = None,
+        rate_limit_coro: Callable[[], Awaitable[None]] | None = None,
+    ) -> dict[str, Any]:
+        """Repair structured output that failed validation asynchronously."""
+        cid = correlation_id or str(uuid.uuid4())[:8]
+
+        if not isinstance(candidate, dict):
+            raise AnalysisError(f"candidate must be a dict, got {type(candidate).__name__}")
+
+        candidate_json = json.dumps(candidate, indent=2)
+        max_candidate_size = 100_000
+        if len(candidate_json) > max_candidate_size:
+            candidate_json = json.dumps(candidate)
+        if len(candidate_json) > max_candidate_size:
+            raise AnalysisError(
+                f"Candidate JSON exceeds maximum size of {max_candidate_size} bytes"
+            )
+
+        schema_text = json.dumps(structured_schema, indent=2) if structured_schema else "{}"
+        prompt = (
+            "You must return only valid JSON that matches the schema. "
+            "Do not include markdown or extra text. "
+            "Fix the validation errors while preserving valid data.\n\n"
+            f"Schema:\n{schema_text}\n\n"
+            f"Validation error:\n{validation_error}\n\n"
+            f"Candidate JSON to repair:\n{candidate_json}\n\n"
+            "Return only the corrected JSON."
+        )
+
+        repaired = await self._run_with_retries_async(
+            prompt=prompt,
+            image_bytes=None,
+            correlation_id=cid,
+            rate_limit_coro=rate_limit_coro,
+        )
         return self._extract_json_object(repaired)
 
     def _build_prompt(
@@ -230,9 +368,9 @@ class ReplicateVisionAnalyzer:
         )
 
     def _run_with_retries(
-        self, 
-        *, 
-        prompt: str, 
+        self,
+        *,
+        prompt: str,
         image_bytes: bytes | None,
         correlation_id: str | None = None,
         page_number: int | None = None,
@@ -248,7 +386,7 @@ class ReplicateVisionAnalyzer:
             for attempt in range(1, self.config.max_retries + 1):
                 try:
                     input_payload = self._build_input_payload(prompt=prompt, image_bytes=image_bytes)
-                    
+
                     self._logger.debug(
                         f"API call attempt {attempt} with model {model}",
                         extra={
@@ -259,7 +397,7 @@ class ReplicateVisionAnalyzer:
                             "has_image": image_bytes is not None,
                         },
                     )
-                    
+
                     try:
                         output = self.client.run(
                             model,
@@ -267,8 +405,9 @@ class ReplicateVisionAnalyzer:
                             wait=self.config.timeout_seconds,
                         )
                     except TypeError:
+                        # Older replicate client versions may not support `wait`.
                         output = self.client.run(model, input=input_payload)
-                    
+
                     self._logger.debug(
                         f"API call successful on attempt {attempt}",
                         extra={
@@ -278,14 +417,14 @@ class ReplicateVisionAnalyzer:
                             "attempt": attempt,
                         },
                     )
-                    
+
                     return self._normalize_output(output)
-                    
+
                 except Exception as exc:
                     last_error = exc
                     if attempt >= self.config.max_retries:
                         break
-                    
+
                     sleep_seconds = self.config.retry_backoff_seconds * (2 ** (attempt - 1))
                     self._logger.warning(
                         f"API call failed, will retry in {sleep_seconds}s",
@@ -294,7 +433,7 @@ class ReplicateVisionAnalyzer:
                             "page_number": page_number,
                             "model": model,
                             "attempt": attempt,
-                            "error": str(exc)[:200],
+                            "error": _format_last_error(exc)[:200],
                             "next_retry_delay": sleep_seconds,
                         },
                     )
@@ -306,10 +445,96 @@ class ReplicateVisionAnalyzer:
                 "correlation_id": cid,
                 "page_number": page_number,
                 "attempts": self.config.max_retries,
-                "last_error": str(last_error)[:200],
+                "last_error": _format_last_error(last_error)[:200],
             },
         )
-        raise AnalysisError(f"Replicate analysis failed: {last_error}")
+        raise AnalysisError(f"Replicate analysis failed: {_format_last_error(last_error)}")
+
+    async def _run_with_retries_async(
+        self,
+        *,
+        prompt: str,
+        image_bytes: bytes | None,
+        correlation_id: str | None = None,
+        page_number: int | None = None,
+        rate_limit_coro: Callable[[], Awaitable[None]] | None = None,
+    ) -> str:
+        candidate_models: list[str] = [self.config.model]
+        if self.config.fallback_model and self.config.fallback_model != self.config.model:
+            candidate_models.append(self.config.fallback_model)
+
+        last_error: Exception | None = None
+        cid = correlation_id or str(uuid.uuid4())[:8]
+
+        for model in candidate_models:
+            for attempt in range(1, self.config.max_retries + 1):
+                try:
+                    input_payload = self._build_input_payload(prompt=prompt, image_bytes=image_bytes)
+
+                    if rate_limit_coro is not None:
+                        await rate_limit_coro()
+
+                    output = await self._run_model_async(model=model, input_payload=input_payload)
+                    return self._normalize_output(output)
+
+                except Exception as exc:
+                    last_error = exc
+                    if attempt >= self.config.max_retries:
+                        break
+
+                    sleep_seconds = self.config.retry_backoff_seconds * (2 ** (attempt - 1))
+                    self._logger.warning(
+                        f"Async API call failed, will retry in {sleep_seconds}s",
+                        extra={
+                            "correlation_id": cid,
+                            "page_number": page_number,
+                            "model": model,
+                            "attempt": attempt,
+                            "error": _format_last_error(exc)[:200],
+                            "next_retry_delay": sleep_seconds,
+                        },
+                    )
+                    await asyncio.sleep(sleep_seconds)
+
+        self._logger.error(
+            f"All {len(candidate_models)} models failed after async retries",
+            extra={
+                "correlation_id": cid,
+                "page_number": page_number,
+                "attempts": self.config.max_retries,
+                "last_error": _format_last_error(last_error)[:200],
+            },
+        )
+        raise AnalysisError(f"Replicate analysis failed: {_format_last_error(last_error)}")
+
+    async def _run_model_async(self, *, model: str, input_payload: dict[str, Any]) -> Any:
+        # Preferred path: new SDK style AsyncReplicate.run()
+        if self.async_client is not None and hasattr(self.async_client, "run"):
+            try:
+                return await self.async_client.run(
+                    model,
+                    input=input_payload,
+                    wait=self.config.timeout_seconds,
+                )
+            except TypeError:
+                return await self.async_client.run(model, input=input_payload)
+
+        # Without AsyncReplicate, avoid Client.async_run(): it uses httpx async with a default
+        # write timeout that fails on large image payloads (WriteTimeout while uploading body).
+        # Use sync client.run in a thread, but only one at a time: concurrent page tasks otherwise
+        # overload the upload path (same failure mode as parallel async_run).
+        def _sync_run() -> Any:
+            try:
+                return self.client.run(
+                    model,
+                    input=input_payload,
+                    wait=self.config.timeout_seconds,
+                )
+            except TypeError:
+                return self.client.run(model, input=input_payload)
+
+        async with self._sync_replicate_lock:
+            return await asyncio.to_thread(_sync_run)
 
     def _build_input_payload(self, *, prompt: str, image_bytes: bytes | None) -> dict[str, Any]:
         payload: dict[str, Any] = {

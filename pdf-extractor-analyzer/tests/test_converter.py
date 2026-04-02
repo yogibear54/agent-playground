@@ -12,7 +12,7 @@ def test_convert_pdf_to_images(make_pdf, tmp_path: Path):
     out_dir = tmp_path / "images"
 
     converter = PDFConverter()
-    pages = converter.convert(pdf_path, dpi=150, output_dir=out_dir)
+    pages = converter.convert(pdf_path, 150, out_dir)
 
     assert len(pages) == 2
     assert pages[0].page_number == 1
@@ -26,15 +26,26 @@ def test_convert_pdf_to_images(make_pdf, tmp_path: Path):
 def test_convert_respects_max_pages(make_pdf, tmp_path: Path):
     pdf_path = make_pdf("three.pdf", pages=3)
     converter = PDFConverter()
-    pages = converter.convert(pdf_path, dpi=150, output_dir=tmp_path / "images", max_pages=1)
+    pages = converter.convert(pdf_path, 150, tmp_path / "images", max_pages=1)
     assert len(pages) == 1
+
+
+def test_convert_can_cap_long_edge(make_pdf, tmp_path: Path):
+    pdf_path = make_pdf("cap.pdf", pages=1)
+    converter = PDFConverter()
+
+    uncapped = converter.convert(pdf_path, 150, None)
+    capped = converter.convert(pdf_path, 150, None, image_max_long_edge=512)
+
+    assert max(capped[0].width, capped[0].height) <= 512
+    assert max(capped[0].width, capped[0].height) <= max(uncapped[0].width, uncapped[0].height)
 
 
 def test_load_from_dir(make_pdf, tmp_path: Path):
     pdf_path = make_pdf("loadable.pdf", pages=2)
     out_dir = tmp_path / "images"
     converter = PDFConverter()
-    converter.convert(pdf_path, dpi=150, output_dir=out_dir)
+    converter.convert(pdf_path, 150, out_dir)
 
     pages = converter.load_from_dir(out_dir)
     assert len(pages) == 2
@@ -44,7 +55,7 @@ def test_load_from_dir(make_pdf, tmp_path: Path):
 def test_convert_raises_for_missing_pdf(tmp_path: Path):
     converter = PDFConverter()
     with pytest.raises(ConversionError, match="Failed to open PDF"):
-        converter.convert(tmp_path / "missing.pdf", dpi=150, output_dir=None)
+        converter.convert(tmp_path / "missing.pdf", 150, None)
 
 
 def test_convert_raises_for_encrypted_pdf(tmp_path: Path):
@@ -62,4 +73,4 @@ def test_convert_raises_for_encrypted_pdf(tmp_path: Path):
 
     converter = PDFConverter()
     with pytest.raises(ConversionError, match="Encrypted PDFs"):
-        converter.convert(pdf_path, dpi=150, output_dir=None)
+        converter.convert(pdf_path, 150, None)

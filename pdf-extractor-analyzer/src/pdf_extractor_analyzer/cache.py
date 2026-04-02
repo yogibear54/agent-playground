@@ -31,6 +31,7 @@ class CacheMetadata:
     dpi: int
     created_at: str
     source_hash: str
+    image_max_long_edge: int | None = None
     max_pages: int | None = None
     converter_version: str = "1"
 
@@ -40,6 +41,7 @@ class CacheMetadata:
             "dpi": self.dpi,
             "created_at": self.created_at,
             "source_hash": self.source_hash,
+            "image_max_long_edge": self.image_max_long_edge,
             "max_pages": self.max_pages,
             "converter_version": self.converter_version,
         }
@@ -92,6 +94,7 @@ class CacheManager:
                 dpi=int(data["dpi"]),
                 created_at=str(data["created_at"]),
                 source_hash=str(data["source_hash"]),
+                image_max_long_edge=data.get("image_max_long_edge"),
                 max_pages=data.get("max_pages"),
                 converter_version=str(data.get("converter_version", "1")),
             )
@@ -108,10 +111,10 @@ class CacheManager:
     def is_cache_hit(
         self,
         cache_dir: Path,
-        *,
         source_hash: str,
         dpi: int,
         max_pages: int | None,
+        image_max_long_edge: int | None = None,
     ) -> bool:
         if not cache_dir.exists():
             return False
@@ -124,6 +127,9 @@ class CacheManager:
             return False
 
         if metadata.source_hash != source_hash or metadata.dpi != dpi:
+            return False
+
+        if metadata.image_max_long_edge != image_max_long_edge:
             return False
 
         if metadata.max_pages != max_pages:

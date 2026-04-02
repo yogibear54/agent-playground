@@ -27,6 +27,9 @@ class FakeExtractor:
             metadata={"ok": True},
         )
 
+    async def extract_async(self, pdf_path, *, mode, schema=None):
+        return self.extract(pdf_path, mode=mode, schema=schema)
+
     def extract_many(self, pdf_paths, *, mode, schema=None, max_workers=4, continue_on_error=True):
         return [
             BatchExtractionItem(
@@ -36,6 +39,15 @@ class FakeExtractor:
             )
             for path in pdf_paths
         ]
+
+    async def extract_many_async(self, pdf_paths, *, mode, schema=None, max_workers=4, continue_on_error=True):
+        return self.extract_many(
+            pdf_paths,
+            mode=mode,
+            schema=schema,
+            max_workers=max_workers,
+            continue_on_error=continue_on_error,
+        )
 
 
 def test_cli_single_output(monkeypatch, capsys):
@@ -57,6 +69,25 @@ def test_cli_batch_output(monkeypatch, capsys):
     assert isinstance(payload, list)
     assert len(payload) == 2
     assert payload[0]["status"] == BatchItemStatus.SUCCESS.value
+
+
+def test_cli_async_single_output(monkeypatch, capsys):
+    monkeypatch.setattr(cli, "PDFExtractor", FakeExtractor)
+    code = cli.main(["/tmp/a.pdf", "--mode", "summary", "--async"])
+    assert code == 0
+
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["content"] == "single:/tmp/a.pdf"
+
+
+def test_cli_async_batch_output(monkeypatch, capsys):
+    monkeypatch.setattr(cli, "PDFExtractor", FakeExtractor)
+    code = cli.main(["/tmp/a.pdf", "/tmp/b.pdf", "--mode", "full_text", "--async"])
+    assert code == 0
+
+    payload = json.loads(capsys.readouterr().out)
+    assert isinstance(payload, list)
+    assert len(payload) == 2
 
 
 def test_cli_structured_requires_schema_import(monkeypatch):

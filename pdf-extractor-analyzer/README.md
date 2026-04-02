@@ -82,6 +82,13 @@ Markdown extraction (saves `content.json` and `content.md`):
 pdf-extractor ./sample-pdfs/sample.pdf --mode markdown --cache-mode persistent --pretty
 ```
 
+Control rendered page image size:
+
+```bash
+# Render at 150dpi, but cap the longest edge (width/height) to 2048px.
+pdf-extractor ./sample-pdfs/sample.pdf --mode markdown --dpi 150 --image-max-long-edge 2048 --pretty
+```
+
 Fail fast on first batch error:
 
 ```bash

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import asyncio
 import importlib
 import json
 import sys
@@ -39,6 +40,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--fallback-model", default="openai/gpt-4o-mini", help="Fallback model")
     parser.add_argument("--dpi", type=int, default=150, help="DPI for PDF image conversion")
     parser.add_argument(
+        "--image-max-long-edge",
+        type=int,
+        default=None,
+        help="Optional cap on rendered page image size (max of width/height in pixels)",
+    )
+    parser.add_argument(
         "--cache-mode",
         default=CacheMode.PERSISTENT.value,
         choices=[m.value for m in CacheMode],
@@ -50,6 +57,18 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--max-pages", type=int, default=None, help="Optional page limit")
     parser.add_argument("--max-workers", type=int, default=4, help="Parallel workers for multiple PDFs")
     parser.add_argument(
+        "--max-concurrent-pages",
+        type=int,
+        default=4,
+        help="Per-document async page concurrency limit",
+    )
+    parser.add_argument(
+        "--async-rps",
+        type=float,
+        default=8.0,
+        help="Per-document async request rate limit (requests/second)",
+    )
+    parser.add_argument(
         "--stop-on-error",
         action="store_true",
         help="Stop batch processing on first error",
@@ -59,6 +78,12 @@ def build_parser() -> argparse.ArgumentParser:
         "--pretty",
         action="store_true",
         help="Print indented JSON output",
+    )
+    parser.add_argument(
+        "--async",
+        dest="use_async",
+        action="store_true",
+        help="Use async extraction pipeline",
     )
     return parser
 
@@ -77,27 +102,48 @@ def main(argv: list[str] | None = None) -> int:
 
         config = ExtractorConfig(
             dpi=args.dpi,
+            image_max_long_edge=args.image_max_long_edge,
             cache_mode=CacheMode(args.cache_mode),
             cache_dir=Path(args.cache_dir),
             cache_ttl_days=args.cache_ttl_days,
             model=args.model,
             fallback_model=args.fallback_model,
             max_pages=args.max_pages,
+            max_concurrent_pages=args.max_concurrent_pages,
+            async_requests_per_second=args.async_rps,
         )
 
         extractor = PDFExtractor(config)
-        if len(args.pdf_paths) == 1:
-            result = extractor.extract(args.pdf_paths[0], mode=mode, schema=schema_class)
-            payload = result.model_dump()
+        if args.use_async:
+            if len(args.pdf_paths) == 1:
+                result = asyncio.run(
+                    extractor.extract_async(args.pdf_paths[0], mode=mode, schema=schema_class)
+                )
+                payload = result.model_dump()
+            else:
+                results = asyncio.run(
+                    extractor.extract_many_async(
+                        args.pdf_paths,
+                        mode=mode,
+                        schema=schema_class,
+                        max_workers=args.max_workers,
+                        continue_on_error=not args.stop_on_error,
+                    )
+                )
+                payload = [item.model_dump() for item in results]
         else:
-            results = extractor.extract_many(
-                args.pdf_paths,
-                mode=mode,
-                schema=schema_class,
-                max_workers=args.max_workers,
-                continue_on_error=not args.stop_on_error,
-            )
-            payload = [item.model_dump() for item in results]
+            if len(args.pdf_paths) == 1:
+                result = extractor.extract(args.pdf_paths[0], mode=mode, schema=schema_class)
+                payload = result.model_dump()
+            else:
+                results = extractor.extract_many(
+                    args.pdf_paths,
+                    mode=mode,
+                    schema=schema_class,
+                    max_workers=args.max_workers,
+                    continue_on_error=not args.stop_on_error,
+                )
+                payload = [item.model_dump() for item in results]
 
         text = json.dumps(payload, indent=2 if args.pretty else None)
         if args.output:

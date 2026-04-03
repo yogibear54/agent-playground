@@ -77,6 +77,10 @@ config = ExtractorConfig(
 )
 ```
 
+## Model selection
+
+Model availability depends on the provider and your account. **Some models are region-locked** (or otherwise restricted), so a model that appears in documentation or the provider’s catalog may still reject requests from your region or billing setup. This tool does not detect region restrictions ahead of time; **if the provider returns an error** (for example access denied or model unavailable), **that error is raised to the caller**—try another model or provider if you hit a restriction.
+
 ## CLI Usage
 
 Show help:
@@ -258,6 +262,8 @@ Single extraction returns:
 }
 ```
 
+`metadata.source_hash` is the full SHA-256 hex digest of the PDF (64 characters). When `cache_mode` is `persistent`, files are stored under `cache_dir` in a subdirectory named after the **first 32 characters** of that hash (not the full 64).
+
 Batch extraction returns a list of items:
 
 ```json
@@ -279,7 +285,7 @@ Batch extraction returns a list of items:
 
 ## Cache Modes
 
-- `persistent`: writes/reads cache under `cache_dir` using PDF content hash
+- `persistent`: writes/reads cache under `cache_dir`; each PDF’s cache folder is named `source_hash[:32]` (first 32 hex chars of the full 64-char SHA-256 `source_hash`)
 - `ephemeral`: temporary per-run cache cleaned automatically
 - `disabled`: no cache reads/writes
 
@@ -311,9 +317,11 @@ When using `cache_mode=persistent`, extraction results are saved to the cache di
 - `content.json`: Contains the extraction result with `content`, `extraction_params`, and `cached_at` fields
 - `content.md`: Created additionally when using `markdown` mode, containing the same content in Markdown format with page separators
 
+The subdirectory name is `source_hash[:32]`—the first 32 hex characters of the full 64-character `source_hash` in metadata (SHA-256 of the PDF bytes).
+
 ```
 cache/
-└── <hash>/
+└── <first 32 chars of source_hash>/
     ├── content.json   # Always created
     ├── content.md     # Only for markdown mode
     ├── metadata.json

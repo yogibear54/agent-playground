@@ -34,9 +34,11 @@ class OpenRouterProviderConfig:
 class ExtractorConfig:
     LEGACY_DEFAULT_MODEL: ClassVar[str] = "openai/gpt-4o"
     LEGACY_DEFAULT_FALLBACK_MODEL: ClassVar[str | None] = "openai/gpt-4o-mini"
-    # OPENROUTER_DEFAULT_MODEL: ClassVar[str] = "qwen/qwen3.6-plus:free"
-    OPENROUTER_DEFAULT_MODEL: ClassVar[str] = "nvidia/llama-nemotron-embed-vl-1b-v2:free"
-    OPENROUTER_DEFAULT_FALLBACK_MODEL: ClassVar[str | None] = "openai/gpt-4o"
+    
+    # OPENROUTER_DEFAULT_MODEL: ClassVar[str] = "xiaomi/mimo-v2-omni"
+    # OPENROUTER_DEFAULT_MODEL: ClassVar[str] = "moonshotai/kimi-k2.5"
+    OPENROUTER_DEFAULT_MODEL: ClassVar[str] = "xiaomi/mimo-v2-omni"
+    OPENROUTER_DEFAULT_FALLBACK_MODEL: ClassVar[str | None] = "qwen/qwen3.5-flash-02-23"
 
     dpi: int = 72
     cache_dir: Path = Path("./cache")

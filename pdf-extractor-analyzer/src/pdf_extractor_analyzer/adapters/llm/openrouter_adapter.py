@@ -136,7 +136,27 @@ class OpenRouterLLMAdapter(LLMProviderPort):
     def _to_provider_error(self, exc: Exception, *, model: str) -> ProviderError:
         if isinstance(exc, urlerror.HTTPError):
             status = exc.code
-            message = exc.reason if exc.reason else f"HTTP {status}"
+            reason_phrase = exc.reason if exc.reason else f"HTTP {status}"
+            body_full = ""
+            try:
+                if exc.fp is not None:
+                    body_full = exc.fp.read().decode("utf-8", errors="replace")
+            except OSError:
+                body_full = ""
+
+            api_detail = ""
+            if body_full:
+                try:
+                    parsed = json.loads(body_full)
+                    err_obj = parsed.get("error")
+                    if isinstance(err_obj, dict):
+                        raw_msg = err_obj.get("message")
+                        if isinstance(raw_msg, str) and raw_msg.strip():
+                            api_detail = raw_msg.strip()
+                except json.JSONDecodeError:
+                    pass
+
+            message = api_detail or reason_phrase
 
             if status == 401:
                 code = ProviderErrorCode.AUTHENTICATION

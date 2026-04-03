@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import asyncio
+import io
+import json
 from urllib.error import HTTPError
 
 import pytest
@@ -104,6 +106,29 @@ def test_generate_maps_http_429_to_rate_limit_error():
 
     assert exc.value.code == ProviderErrorCode.RATE_LIMIT
     assert exc.value.retryable is True
+
+
+def test_generate_maps_http_404_json_error_message_to_provider_error():
+    err_body = json.dumps(
+        {"error": {"message": "No endpoints found that support image input", "code": 404}}
+    )
+
+    def fake_post(url, payload, headers, timeout):
+        raise HTTPError(
+            url=url,
+            code=404,
+            msg="Not Found",
+            hdrs={},
+            fp=io.BytesIO(err_body.encode("utf-8")),
+        )
+
+    adapter = OpenRouterLLMAdapter(_cfg(), post_json=fake_post)
+
+    with pytest.raises(ProviderError) as exc:
+        adapter.generate(LLMRequest(prompt="x", model="openrouter/auto"))
+
+    assert exc.value.code == ProviderErrorCode.INVALID_REQUEST
+    assert "No endpoints found that support image input" in str(exc.value)
 
 
 def test_agenerate_uses_sync_generate_via_thread():

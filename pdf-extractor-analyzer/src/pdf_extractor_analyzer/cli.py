@@ -47,11 +47,21 @@ def build_parser() -> argparse.ArgumentParser:
         default="replicate",
         help="LLM provider (e.g. replicate, openrouter)",
     )
-    parser.add_argument("--model", default="openai/gpt-4o", help="Primary model")
+    parser.add_argument(
+        "--model",
+        default=None,
+        help=(
+            "Primary model (default: openai/gpt-4o for replicate, "
+            f"{ExtractorConfig.OPENROUTER_DEFAULT_MODEL} for openrouter)"
+        ),
+    )
     parser.add_argument(
         "--fallback-model",
-        default="openai/gpt-4o-mini",
-        help="Fallback model (same provider)",
+        default=None,
+        help=(
+            "Fallback model (default: openai/gpt-4o-mini for replicate; "
+            "openrouter uses config default when omitted)"
+        ),
     )
     parser.add_argument("--dpi", type=int, default=150, help="DPI for PDF image conversion")
     parser.add_argument(
@@ -158,6 +168,25 @@ def main(argv: list[str] | None = None) -> int:
         if replicate_max_calls is None:
             replicate_max_calls = 1
 
+        provider_key = args.provider.strip().lower()
+        # When --model is omitted, use values that let ExtractorConfig pick provider defaults:
+        # - replicate: historical CLI default was openai/gpt-4o
+        # - openrouter: LEGACY_DEFAULT_MODEL so get_primary_model() returns OPENROUTER_DEFAULT_MODEL
+        if args.model is None:
+            resolved_model = (
+                ExtractorConfig.LEGACY_DEFAULT_MODEL
+                if provider_key == "openrouter"
+                else "openai/gpt-4o"
+            )
+        else:
+            resolved_model = args.model
+
+        resolved_fallback = (
+            ExtractorConfig.LEGACY_DEFAULT_FALLBACK_MODEL
+            if args.fallback_model is None
+            else args.fallback_model
+        )
+
         config = ExtractorConfig(
             dpi=args.dpi,
             image_max_long_edge=args.image_max_long_edge,
@@ -165,8 +194,8 @@ def main(argv: list[str] | None = None) -> int:
             cache_dir=Path(args.cache_dir),
             cache_ttl_days=args.cache_ttl_days,
             provider=args.provider,
-            model=args.model,
-            fallback_model=args.fallback_model,
+            model=resolved_model,
+            fallback_model=resolved_fallback,
             max_pages=args.max_pages,
             max_concurrent_pages=args.max_concurrent_pages,
             max_concurrent_replicate_calls=replicate_max_calls,

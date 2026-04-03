@@ -6,7 +6,7 @@ import pytest
 from pdf_extractor_analyzer.analyzer import VisionAnalyzer
 from pdf_extractor_analyzer.config import ExtractorConfig
 from pdf_extractor_analyzer.exceptions import AnalysisError, ValidationError
-from pdf_extractor_analyzer.ports.llm_provider import LLMRequest, LLMResponse
+from pdf_extractor_analyzer.ports.llm_provider import LLMRequest, LLMResponse, ProviderError, ProviderErrorCode
 from pdf_extractor_analyzer.schemas import ExtractionMode
 
 
@@ -53,7 +53,7 @@ def test_analyze_page_full_text_uses_prompt_and_image_payload():
 
     assert output == "transcribed text"
     call = provider.sync_calls[0]
-    assert call.model == "openai/gpt-4o"
+    assert call.model == ExtractorConfig.LEGACY_DEFAULT_MODEL
     assert call.image_bytes == b"img"
 
 
@@ -261,3 +261,24 @@ def test_run_with_retries_async_uses_fallback_model():
         "primary/model",
         "fallback/model",
     ]
+
+
+def test_region_unavailability_error_message_is_user_facing():
+    """OpenRouter-style region errors should not read like an internal bug."""
+    region_exc = ProviderError(
+        "This model is not available in your region.",
+        provider="fake",
+        code=ProviderErrorCode.INVALID_REQUEST,
+        retryable=False,
+    )
+    provider = FakeProvider([region_exc])
+    config = ExtractorConfig(max_retries=2, retry_backoff_seconds=0, fallback_model=None)
+    analyzer = _make_analyzer_with_provider(provider, config)
+
+    with pytest.raises(AnalysisError) as exc_info:
+        analyzer.analyze_page(image_bytes=b"img", mode=ExtractionMode.FULL_TEXT)
+
+    msg = str(exc_info.value)
+    assert "not available in your region" in msg
+    assert "Configure a different model" in msg
+    assert "(API:" in msg

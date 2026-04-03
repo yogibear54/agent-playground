@@ -34,10 +34,11 @@ class OpenRouterProviderConfig:
 class ExtractorConfig:
     LEGACY_DEFAULT_MODEL: ClassVar[str] = "openai/gpt-4o"
     LEGACY_DEFAULT_FALLBACK_MODEL: ClassVar[str | None] = "openai/gpt-4o-mini"
-    OPENROUTER_DEFAULT_MODEL: ClassVar[str] = "z-ai/glm-4.6v"
-    OPENROUTER_DEFAULT_FALLBACK_MODEL: ClassVar[str | None] = "openrouter/auto"
+    # OPENROUTER_DEFAULT_MODEL: ClassVar[str] = "qwen/qwen3.6-plus:free"
+    OPENROUTER_DEFAULT_MODEL: ClassVar[str] = "nvidia/llama-nemotron-embed-vl-1b-v2:free"
+    OPENROUTER_DEFAULT_FALLBACK_MODEL: ClassVar[str | None] = "openai/gpt-4o"
 
-    dpi: int = 150
+    dpi: int = 72
     cache_dir: Path = Path("./cache")
     cache_mode: CacheMode = CacheMode.PERSISTENT
     cache_ttl_days: int = 7
@@ -65,7 +66,7 @@ class ExtractorConfig:
     async_requests_per_second: float = 8.0
 
     # Input validation limits
-    image_max_long_edge: int | None = None
+    image_max_long_edge: int | 600 = None
     max_image_width: int = 8000
     max_image_height: int = 8000
     max_image_bytes: int = 20_971_520  # 20MB

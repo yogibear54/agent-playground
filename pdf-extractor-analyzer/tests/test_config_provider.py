@@ -77,15 +77,15 @@ def test_openrouter_config_validation_with_explicit_api_key():
 
 def test_model_resolution_defaults_are_provider_specific():
     replicate_cfg = ExtractorConfig(provider="replicate")
-    assert replicate_cfg.get_primary_model() == "openai/gpt-4o"
-    assert replicate_cfg.get_fallback_model() == "openai/gpt-4o-mini"
+    assert replicate_cfg.get_primary_model() == ExtractorConfig.LEGACY_DEFAULT_MODEL
+    assert replicate_cfg.get_fallback_model() == ExtractorConfig.LEGACY_DEFAULT_FALLBACK_MODEL
 
     openrouter_cfg = ExtractorConfig(
         provider="openrouter",
         openrouter=OpenRouterProviderConfig(api_key="abc123"),
     )
-    assert openrouter_cfg.get_primary_model() == "openrouter/auto"
-    assert openrouter_cfg.get_fallback_model() is None
+    assert openrouter_cfg.get_primary_model() == ExtractorConfig.OPENROUTER_DEFAULT_MODEL
+    assert openrouter_cfg.get_fallback_model() == ExtractorConfig.OPENROUTER_DEFAULT_FALLBACK_MODEL
 
 
 def test_model_resolution_prefers_provider_specific_config():

@@ -208,6 +208,44 @@ def test_cli_provider_and_openrouter_flags_map_to_config(monkeypatch, capsys):
     assert cfg.model == "openrouter/auto"
 
 
+def test_cli_openrouter_omitted_model_uses_openrouter_default_primary(monkeypatch, capsys):
+    """Omitting --model with --provider openrouter must not inject replicate's gpt-4o default."""
+    from pdf_extractor_analyzer.config import ExtractorConfig
+
+    monkeypatch.setattr(cli, "PDFExtractor", FakeExtractor)
+
+    code = cli.main(
+        [
+            "/tmp/a.pdf",
+            "--mode",
+            "summary",
+            "--provider",
+            "openrouter",
+            "--openrouter-api-key",
+            "key-123",
+        ]
+    )
+
+    assert code == 0
+    cfg = FakeExtractor.last_config
+    assert cfg is not None
+    assert cfg.model == ExtractorConfig.LEGACY_DEFAULT_MODEL
+    assert cfg.get_primary_model() == ExtractorConfig.OPENROUTER_DEFAULT_MODEL
+
+
+def test_cli_replicate_omitted_model_keeps_historical_gpt4o_default(monkeypatch, capsys):
+    monkeypatch.setattr(cli, "PDFExtractor", FakeExtractor)
+
+    code = cli.main(["/tmp/a.pdf", "--mode", "summary"])
+
+    assert code == 0
+    cfg = FakeExtractor.last_config
+    assert cfg is not None
+    assert cfg.provider == "replicate"
+    assert cfg.model == "openai/gpt-4o"
+    assert cfg.get_primary_model() == "openai/gpt-4o"
+
+
 def test_cli_legacy_replicate_flags_still_work(monkeypatch, capsys):
     monkeypatch.setattr(cli, "PDFExtractor", FakeExtractor)
 

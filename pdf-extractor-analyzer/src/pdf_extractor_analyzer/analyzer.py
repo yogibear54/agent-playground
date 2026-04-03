@@ -27,6 +27,50 @@ def _format_last_error(exc: BaseException | None) -> str:
     return type(exc).__name__
 
 
+def _is_model_region_or_access_error(exc: BaseException | None) -> bool:
+    """True when the provider indicates the model cannot be used (e.g. region)."""
+    if exc is None:
+        return False
+    low = _format_last_error(exc).lower()
+    return "not available in your region" in low or "not available in region" in low
+
+
+def _analysis_failure_message(provider_name: str, exc: BaseException | None) -> str:
+    """User-facing AnalysisError text; avoids sounding like an internal bug for API issues."""
+    detail = _format_last_error(exc)
+    if _is_model_region_or_access_error(exc):
+        return (
+            f"{provider_name}: The selected model is not available in your region. "
+            f"Configure a different model or provider, or use an endpoint that serves your location. "
+            f"(API: {detail})"
+        )
+    return f"{provider_name} analysis failed: {detail}"
+
+
+def _log_models_exhausted(
+    logger: logging.Logger,
+    *,
+    async_mode: bool,
+    candidate_models: list[str],
+    last_error: BaseException | None,
+    extra: dict[str, Any],
+) -> None:
+    ctx = "async " if async_mode else ""
+    n = len(candidate_models)
+    models_label = ", ".join(candidate_models)
+    if _is_model_region_or_access_error(last_error):
+        logger.warning(
+            f"All {n} configured model(s) unavailable for {ctx}analysis "
+            f"(region or access): [{models_label}]. {_format_last_error(last_error)}",
+            extra=extra,
+        )
+        return
+    logger.error(
+        f"All {n} models failed after {ctx}retries",
+        extra={**extra, "last_error": _format_last_error(last_error)[:200]},
+    )
+
+
 class VisionAnalyzer:
     def __init__(self, config: ExtractorConfig, provider: LLMProviderPort | None = None):
         self.config = config
@@ -104,12 +148,12 @@ class VisionAnalyzer:
                 return self._extract_json_object(raw)
             return raw.strip()
 
-        except AnalysisError:
+        except AnalysisError as err:
             duration_ms = (time.time() - start_time) * 1000
             self._logger.error(
-                "Page analysis failed after all retries",
+                "Page analysis failed after all retries: %s",
+                err,
                 extra={**extra, "duration_ms": round(duration_ms, 2)},
-                exc_info=True,
             )
             raise
 
@@ -159,12 +203,12 @@ class VisionAnalyzer:
                 return self._extract_json_object(raw)
             return raw.strip()
 
-        except AnalysisError:
+        except AnalysisError as err:
             duration_ms = (time.time() - start_time) * 1000
             self._logger.error(
-                "Async page analysis failed after all retries",
+                "Async page analysis failed after all retries: %s",
+                err,
                 extra={**extra, "duration_ms": round(duration_ms, 2)},
-                exc_info=True,
             )
             raise
 
@@ -405,8 +449,11 @@ class VisionAnalyzer:
                     )
                     time.sleep(sleep_seconds)
 
-        self._logger.error(
-            f"All {len(candidate_models)} models failed after retries",
+        _log_models_exhausted(
+            self._logger,
+            async_mode=False,
+            candidate_models=candidate_models,
+            last_error=last_error,
             extra={
                 "correlation_id": cid,
                 "page_number": page_number,
@@ -415,9 +462,7 @@ class VisionAnalyzer:
                 "last_error": _format_last_error(last_error)[:200],
             },
         )
-        raise AnalysisError(
-            f"{self.provider.provider_name} analysis failed: {_format_last_error(last_error)}"
-        )
+        raise AnalysisError(_analysis_failure_message(self.provider.provider_name, last_error))
 
     async def _run_with_retries_async(
         self,
@@ -483,8 +528,11 @@ class VisionAnalyzer:
                     )
                     await asyncio.sleep(sleep_seconds)
 
-        self._logger.error(
-            f"All {len(candidate_models)} models failed after async retries",
+        _log_models_exhausted(
+            self._logger,
+            async_mode=True,
+            candidate_models=candidate_models,
+            last_error=last_error,
             extra={
                 "correlation_id": cid,
                 "page_number": page_number,
@@ -493,9 +541,7 @@ class VisionAnalyzer:
                 "last_error": _format_last_error(last_error)[:200],
             },
         )
-        raise AnalysisError(
-            f"{self.provider.provider_name} analysis failed: {_format_last_error(last_error)}"
-        )
+        raise AnalysisError(_analysis_failure_message(self.provider.provider_name, last_error))
 
     def _extract_json_object(self, text: str) -> dict[str, Any]:
         stripped = text.strip()

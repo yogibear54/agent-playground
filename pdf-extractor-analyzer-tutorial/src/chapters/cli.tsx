@@ -29,10 +29,22 @@ pdf-extractor --help`}</Pre>
       <table className="data-table">
         <thead><tr><th>Option</th><th>Default</th><th>Description</th></tr></thead>
         <tbody>
+          <tr><td><code>--provider</code></td><td>replicate</td><td>LLM provider: replicate, openrouter</td></tr>
           <tr><td><code>--mode</code></td><td>full_text</td><td>Extraction mode: full_text, summary, structured, markdown</td></tr>
           <tr><td><code>--schema-import</code></td><td>None</td><td>Pydantic schema import path for structured mode</td></tr>
-          <tr><td><code>--model</code></td><td>openai/gpt-4o</td><td>Primary Replicate model</td></tr>
-          <tr><td><code>--fallback-model</code></td><td>gpt-4o-mini</td><td>Fallback model on primary failure</td></tr>
+          <tr><td><code>--model</code></td><td>openai/gpt-4o</td><td>Primary model (provider-specific)</td></tr>
+          <tr><td><code>--fallback-model</code></td><td>openai/gpt-4o-mini</td><td>Fallback model on primary failure</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Provider-Specific Options</h3>
+      <table className="data-table">
+        <thead><tr><th>Option</th><th>Default</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><code>--replicate-api-token</code></td><td>None</td><td>Replicate API token (overrides env var)</td></tr>
+          <tr><td><code>--replicate-max-concurrent-calls</code></td><td>1</td><td>Replicate max concurrent submissions</td></tr>
+          <tr><td><code>--openrouter-api-key</code></td><td>None</td><td>OpenRouter API key (overrides env var)</td></tr>
+          <tr><td><code>--openrouter-base-url</code></td><td>https://openrouter.ai/api/v1</td><td>OpenRouter API base URL</td></tr>
         </tbody>
       </table>
 
@@ -42,6 +54,7 @@ pdf-extractor --help`}</Pre>
         <tbody>
           <tr><td><code>--dpi</code></td><td>150</td><td>Image resolution for PDF pages</td></tr>
           <tr><td><code>--max-pages</code></td><td>None</td><td>Limit pages to process</td></tr>
+          <tr><td><code>--image-max-long-edge</code></td><td>None</td><td>Cap longest edge of rendered images (pixels)</td></tr>
         </tbody>
       </table>
 
@@ -59,7 +72,9 @@ pdf-extractor --help`}</Pre>
       <table className="data-table">
         <thead><tr><th>Option</th><th>Default</th><th>Description</th></tr></thead>
         <tbody>
-          <tr><td><code>--max-workers</code></td><td>4</td><td>Parallel workers for multiple PDFs</td></tr>
+          <tr><td><code>--max-workers</code></td><td>4</td><td>Parallel workers for multiple PDFs (sync mode)</td></tr>
+          <tr><td><code>--max-concurrent-pages</code></td><td>4</td><td>Per-document async page concurrency</td></tr>
+          <tr><td><code>--async-rps</code></td><td>8.0</td><td>Per-document async request rate limit</td></tr>
           <tr><td><code>--stop-on-error</code></td><td>False</td><td>Stop batch on first error</td></tr>
         </tbody>
       </table>
@@ -70,14 +85,48 @@ pdf-extractor --help`}</Pre>
         <tbody>
           <tr><td><code>--output</code></td><td>stdout</td><td>Write result to file</td></tr>
           <tr><td><code>--pretty</code></td><td>False</td><td>Format JSON with indentation</td></tr>
+          <tr><td><code>--async</code></td><td>False</td><td>Use async extraction pipeline</td></tr>
         </tbody>
       </table>
 
       <h2>Usage Examples</h2>
 
-      <h3>Simple Text Extraction</h3>
-      <Pre>{`# Extract full text from single PDF
-pdf-extractor ./document.pdf --mode full_text --pretty`}</Pre>
+      <h3>Simple Text Extraction (Replicate)</h3>
+      <Pre>{`# Extract full text using default Replicate provider
+pdf-extractor ./document.pdf --mode full_text --pretty
+
+# Specify Replicate model
+pdf-extractor ./document.pdf --provider replicate --model openai/gpt-4o-mini --pretty`}</Pre>
+
+      <h3>OpenRouter Provider</h3>
+      <Pre>{`# Use OpenRouter provider
+pdf-extractor ./document.pdf \
+  --provider openrouter \
+  --model z-ai/glm-4.6v \
+  --mode summary --pretty
+
+# OpenRouter with auto model selection
+pdf-extractor ./document.pdf \
+  --provider openrouter \
+  --model openrouter/auto \
+  --openrouter-api-key your_key \
+  --mode summary --pretty`}</Pre>
+
+      <h3>Async Extraction</h3>
+      <Pre>{`# Use async pipeline for concurrent page processing
+pdf-extractor ./document.pdf \
+  --mode full_text \
+  --async \
+  --max-concurrent-pages 8 \
+  --async-rps 10.0 \
+  --pretty
+
+# Async batch processing
+pdf-extractor ./docs/*.pdf \
+  --mode summary \
+  --async \
+  --max-workers 4 \
+  --pretty`}</Pre>
 
       <h3>Summary Extraction</h3>
       <Pre>{`# Get 3-5 sentence summary with disabled cache
@@ -117,6 +166,13 @@ pdf-extractor ./scan.pdf \\
   --mode full_text \\
   --dpi 300 \\
   --max-pages 10 \\
+  --pretty
+
+# Limit image size for large documents
+pdf-extractor ./large.pdf \\
+  --mode full_text \\
+  --dpi 150 \\
+  --image-max-long-edge 2048 \\
   --pretty`}</Pre>
 
       <h2>Schema Import Format</h2>
@@ -170,7 +226,14 @@ exit_code = main([
       <div className="info-box tip">
         <div className="info-box-title">💡 Environment Variables</div>
         <p>
-          Set <code>REPLICATE_API_TOKEN</code> environment variable instead of passing it in config. The CLI and library will automatically use it.
+          Set provider API keys via environment variables:
+        </p>
+        <ul>
+          <li><code>REPLICATE_API_TOKEN</code> - For Replicate provider</li>
+          <li><code>OPENROUTER_API_KEY</code> - For OpenRouter provider</li>
+        </ul>
+        <p>
+          The CLI and library will automatically use these when provider-specific config is not provided.
         </p>
       </div>
     </>

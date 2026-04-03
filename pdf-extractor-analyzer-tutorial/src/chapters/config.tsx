@@ -15,7 +15,7 @@ export const configContent: ChapterData = {
 
       <h2>ExtractorConfig Dataclass</h2>
       <p>
-        The <code>ExtractorConfig</code> class encapsulates all configurable parameters for PDF extraction. It uses frozen slots for performance.
+        The <code>ExtractorConfig</code> class encapsulates all configurable parameters for PDF extraction. It uses frozen slots for performance. The configuration now includes provider-specific settings following the port-and-adapters architecture.
       </p>
 
       <h3>Conversion Settings</h3>
@@ -38,15 +38,56 @@ export const configContent: ChapterData = {
         </tbody>
       </table>
 
-      <h3>Model Settings</h3>
+      <h3>Provider Settings</h3>
       <table className="data-table">
         <thead><tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr></thead>
         <tbody>
-          <tr><td><code>model</code></td><td>str</td><td>openai/gpt-4o</td><td>Primary Replicate model</td></tr>
-          <tr><td><code>fallback_model</code></td><td>str | None</td><td>gpt-4o-mini</td><td>Fallback model on primary failure</td></tr>
+          <tr><td><code>provider</code></td><td>str</td><td>replicate</td><td>LLM provider (replicate, openrouter)</td></tr>
+          <tr><td><code>model</code></td><td>str</td><td>openai/gpt-4o</td><td>Primary model (provider-specific)</td></tr>
+          <tr><td><code>fallback_model</code></td><td>str | None</td><td>openai/gpt-4o-mini</td><td>Fallback model on primary failure</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Replicate Provider Configuration</h3>
+      <p>The <code>replicate</code> field is a <code>ReplicateProviderConfig</code> instance:</p>
+      <table className="data-table">
+        <thead><tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><code>api_token</code></td><td>str | None</td><td>None</td><td>Replicate API token (or env var)</td></tr>
+          <tr><td><code>max_concurrent_calls</code></td><td>int</td><td>1</td><td>Max concurrent Replicate submissions</td></tr>
+          <tr><td><code>model</code></td><td>str | None</td><td>None</td><td>Override default model</td></tr>
+          <tr><td><code>fallback_model</code></td><td>str | None</td><td>None</td><td>Override default fallback model</td></tr>
+        </tbody>
+      </table>
+
+      <h3>OpenRouter Provider Configuration</h3>
+      <p>The <code>openrouter</code> field is a <code>OpenRouterProviderConfig</code> instance:</p>
+      <table className="data-table">
+        <thead><tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><code>api_key</code></td><td>str | None</td><td>None</td><td>OpenRouter API key (or env var)</td></tr>
+          <tr><td><code>base_url</code></td><td>str</td><td>https://openrouter.ai/api/v1</td><td>OpenRouter API base URL</td></tr>
+          <tr><td><code>model</code></td><td>str | None</td><td>None</td><td>Override default model</td></tr>
+          <tr><td><code>fallback_model</code></td><td>str | None</td><td>None</td><td>Override default fallback model</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Retry and Timeout Settings</h3>
+      <table className="data-table">
+        <thead><tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr></thead>
+        <tbody>
           <tr><td><code>max_retries</code></td><td>int</td><td>3</td><td>Number of API retry attempts</td></tr>
           <tr><td><code>retry_backoff_seconds</code></td><td>float</td><td>1.0</td><td>Base delay for exponential backoff</td></tr>
           <tr><td><code>timeout_seconds</code></td><td>int</td><td>60</td><td>API call timeout</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Concurrency Controls</h3>
+      <table className="data-table">
+        <thead><tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><code>max_concurrent_pages</code></td><td>int</td><td>4</td><td>Per-document async page concurrency limit</td></tr>
+          <tr><td><code>async_requests_per_second</code></td><td>float</td><td>8.0</td><td>Per-document async request rate limit</td></tr>
         </tbody>
       </table>
 
@@ -54,11 +95,11 @@ export const configContent: ChapterData = {
       <table className="data-table">
         <thead><tr><th>Parameter</th><th>Type</th><th>Default</th><th>Description</th></tr></thead>
         <tbody>
+          <tr><td><code>image_max_long_edge</code></td><td>int | None</td><td>None</td><td>Cap longest edge of rendered images</td></tr>
           <tr><td><code>max_image_width</code></td><td>int</td><td>8000</td><td>Maximum image width in pixels</td></tr>
           <tr><td><code>max_image_height</code></td><td>int</td><td>8000</td><td>Maximum image height in pixels</td></tr>
           <tr><td><code>max_image_bytes</code></td><td>int</td><td>20MB</td><td>Maximum image file size</td></tr>
           <tr><td><code>max_pdf_file_size</code></td><td>int | None</td><td>None</td><td>Maximum PDF file size</td></tr>
-          <tr><td><code>replicate_api_token</code></td><td>str | None</td><td>None</td><td>API token (or env var)</td></tr>
         </tbody>
       </table>
 
@@ -74,6 +115,24 @@ export const configContent: ChapterData = {
           <tr><td><code>log_level</code></td><td>str</td><td>WARNING</td><td>Logging verbosity</td></tr>
         </tbody>
       </table>
+
+      <h2>Provider Model Resolution</h2>
+      <p>
+        The configuration uses smart model resolution based on the selected provider:
+      </p>
+      <ul>
+        <li><strong>Replicate provider</strong>: Uses <code>openai/gpt-4o</code> by default</li>
+        <li><strong>OpenRouter provider</strong>: Uses <code>z-ai/glm-4.6v</code> by default with <code>openrouter/auto</code> as fallback</li>
+        <li>Provider-specific configs override the default models</li>
+        <li>Legacy <code>model</code> and <code>fallback_model</code> fields are preserved for backward compatibility</li>
+      </ul>
+
+      <div className="info-box tip">
+        <div className="info-box-title">💡 Provider Selection</div>
+        <p>
+          Set the provider via <code>ExtractorConfig(provider="openrouter")</code> or CLI <code>--provider openrouter</code>. The provider factory will create the appropriate adapter automatically.
+        </p>
+      </div>
 
       <h2>CacheMode Enum</h2>
       <p>
@@ -107,48 +166,80 @@ export const configContent: ChapterData = {
       </div>
 
       <h2>Usage Examples</h2>
-      <Pre>{`# Default configuration
+      <Pre>{`# Default configuration (Replicate provider)
 from pdf_extractor_analyzer import PDFExtractor
 
 extractor = PDFExtractor()
 
-# Custom configuration
-from pdf_extractor_analyzer import PDFExtractor, ExtractorConfig, CacheMode
+# Custom configuration with Replicate
+from pdf_extractor_analyzer import PDFExtractor, ExtractorConfig, CacheMode, ReplicateProviderConfig
 
 config = ExtractorConfig(
     dpi=300,
     cache_mode=CacheMode.EPHEMERAL,
-    model="openai/gpt-4o-mini",
-    max_page_limit=10
+    replicate=ReplicateProviderConfig(
+        api_token="your_token",
+        max_concurrent_calls=2
+    )
 )
-config.validate()  # Explicit validation
+config.validate()
+extractor = PDFExtractor(config)
+
+# OpenRouter provider configuration
+from pdf_extractor_analyzer import OpenRouterProviderConfig
+
+config = ExtractorConfig(
+    provider="openrouter",
+    openrouter=OpenRouterProviderConfig(
+        api_key="your_key",
+        model="z-ai/glm-4.6v"
+    )
+)
 extractor = PDFExtractor(config)`}</Pre>
+
+      <h2>Legacy Compatibility</h2>
+      <p>
+        For backward compatibility, legacy configuration fields are still supported:
+      </p>
+      <Pre>{`# Legacy style still works (with deprecation warnings)
+config = ExtractorConfig(
+    replicate_api_token="your_token",
+    max_concurrent_replicate_calls=2
+)
+
+# These are internally synced to the new provider config
+# but new code should use the grouped provider approach`}</Pre>
     </>
   ),
   quiz: [
+    {
+      question: 'What is the default provider for PDF extraction?',
+      options: ['OpenRouter', 'Replicate', 'Anthropic', 'OpenAI'],
+      correctIndex: 1,
+      explanation: 'The default provider is "replicate", which uses the ReplicateLLMAdapter to communicate with Replicate vision models.',
+    },
+    {
+      question: 'How do you configure the OpenRouter provider?',
+      options: [
+        'Set provider="openrouter" in ExtractorConfig',
+        'Use ReplicateProviderConfig with OpenRouter credentials',
+        'Modify the analyzer.py file directly',
+        'Set OPENROUTER=1 environment variable',
+      ],
+      correctIndex: 0,
+      explanation: 'Set provider="openrouter" in ExtractorConfig and configure the openrouter field with OpenRouterProviderConfig(api_key="your_key").',
+    },
+    {
+      question: 'What is the default model for the OpenRouter provider?',
+      options: ['openai/gpt-4o', 'gpt-4o-mini', 'z-ai/glm-4.6v', 'openrouter/auto'],
+      correctIndex: 2,
+      explanation: 'The OpenRouter provider defaults to "z-ai/glm-4.6v" with "openrouter/auto" as the fallback model.',
+    },
     {
       question: 'What is the default DPI for PDF to image conversion?',
       options: ['72', '150', '300', '600'],
       correctIndex: 1,
       explanation: 'The default DPI is 150, which provides a good balance between quality and file size for most documents.',
-    },
-    {
-      question: 'Which CacheMode should you use for a one-time extraction with no persistent storage?',
-      options: ['PERSISTENT', 'EPHEMERAL', 'DISABLED', 'MEMORY'],
-      correctIndex: 1,
-      explanation: 'EPHEMERAL creates a temporary directory that is automatically cleaned up after extraction, perfect for one-time processing.',
-    },
-    {
-      question: 'What happens if you set temperature to 3.0?',
-      options: ['It works normally', 'It raises a ValueError on validation', 'It defaults to 1.0', 'It raises a TypeError'],
-      correctIndex: 1,
-      explanation: 'The validate() method checks that temperature is between 0.0 and 2.0, raising a ValueError for invalid values.',
-    },
-    {
-      question: 'How many retry attempts are made by default for API calls?',
-      options: ['1', '3', '5', 'No retries'],
-      correctIndex: 1,
-      explanation: 'The default max_retries is 3, meaning up to 3 attempts will be made with exponential backoff between each.',
     },
   ],
 };

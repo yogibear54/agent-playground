@@ -9,6 +9,7 @@ import {
   pipelineContent,
   schemasContent,
   exceptionsContent,
+  providersContent,
   cliContent,
 } from '../chapters';
 
@@ -22,6 +23,7 @@ export const chapters: ChapterData[] = [
   pipelineContent,
   schemasContent,
   exceptionsContent,
+  providersContent,
   cliContent,
 ];
 

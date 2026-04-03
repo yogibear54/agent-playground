@@ -19,7 +19,7 @@ export const architectureContent: ChapterData = {
       
       <h2>Architecture Pattern</h2>
       <p>
-        The project uses a <strong>pipeline architecture</strong> where data flows through a series of processing stages. The main orchestrator (<code>PDFExtractor</code>) coordinates between specialized modules:
+        The project uses a <strong>pipeline architecture</strong> where data flows through a series of processing stages. The main orchestrator (<code>PDFExtractor</code>) coordinates between specialized modules. Additionally, it implements a <strong>port-and-adapters pattern</strong> for LLM provider integration:
       </p>
       
       <h3>Core Layers</h3>
@@ -36,20 +36,30 @@ export const architectureContent: ChapterData = {
           <ul>
             <li><code>pipeline.py</code> - Main <code>PDFExtractor</code> class</li>
             <li>Coordinates converter, cache, and analyzer</li>
+            <li>Supports both sync and async extraction</li>
           </ul>
         </li>
         <li>
           <strong>Processing Layer</strong> - Specialized processing modules
           <ul>
             <li><code>converter.py</code> - PDF to image conversion</li>
-            <li><code>analyzer.py</code> - Vision LLM analysis</li>
+            <li><code>analyzer.py</code> - Vision LLM analysis (provider-agnostic)</li>
             <li><code>cache.py</code> - Hash-based caching</li>
+          </ul>
+        </li>
+        <li>
+          <strong>Provider Layer</strong> - LLM provider adapters (port-and-adapters)
+          <ul>
+            <li><code>ports/llm_provider.py</code> - Provider port contract</li>
+            <li><code>adapters/llm/replicate_adapter.py</code> - Replicate implementation</li>
+            <li><code>adapters/llm/openrouter_adapter.py</code> - OpenRouter implementation</li>
+            <li><code>provider_factory.py</code> - Provider factory and registry</li>
           </ul>
         </li>
         <li>
           <strong>Support Layer</strong> - Configuration and utilities
           <ul>
-            <li><code>config.py</code> - Configuration dataclass</li>
+            <li><code>config.py</code> - Configuration dataclass with provider configs</li>
             <li><code>schemas.py</code> - Pydantic models</li>
             <li><code>exceptions.py</code> - Custom exception hierarchy</li>
           </ul>
@@ -84,9 +94,9 @@ export const architectureContent: ChapterData = {
       </p>
 
       <div className="info-box tip">
-        <div className="info-box-title">💡 Architecture Best Practice</div>
+        <div className="info-box-title">💡 Port-and-Adapters Pattern</div>
         <p>
-          The separation between processing modules allows each to be tested in isolation. You can mock the <code>ReplicateVisionAnalyzer</code> to test the pipeline without making actual API calls.
+          The LLM provider layer uses the port-and-adapters (hexagonal) architecture. The <code>LLMProviderPort</code> defines the interface, and each provider (Replicate, OpenRouter) implements this interface. This makes it easy to add new providers without changing the analyzer logic.
         </p>
       </div>
 
@@ -94,6 +104,9 @@ export const architectureContent: ChapterData = {
       <p>The dependency graph flows in one direction:</p>
       <ul>
         <li>CLI/Library → Pipeline → Converter + Cache + Analyzer</li>
+        <li>Analyzer → LLM Provider Port (abstract)</li>
+        <li>Provider Adapters (Replicate, OpenRouter) implement LLM Provider Port</li>
+        <li>Provider Factory creates appropriate adapter based on config</li>
         <li>All modules depend on Config and Exceptions (support layer)</li>
         <li>Pipeline depends on Schemas for output types</li>
       </ul>
@@ -111,9 +124,20 @@ export const architectureContent: ChapterData = {
 
       <h3>Python Library</h3>
       <p>Import directly in your Python code:</p>
-      <Pre>{`from pdf_extractor_analyzer import PDFExtractor, ExtractorConfig
+      <Pre>{`from pdf_extractor_analyzer import PDFExtractor, ExtractorConfig, ExtractionMode
 
+# Using default provider (Replicate)
 extractor = PDFExtractor(ExtractorConfig())
+result = extractor.extract("document.pdf", mode=ExtractionMode.SUMMARY)
+
+# Using OpenRouter provider
+from pdf_extractor_analyzer import OpenRouterProviderConfig
+
+config = ExtractorConfig(
+    provider="openrouter",
+    openrouter=OpenRouterProviderConfig(api_key="your_key")
+)
+extractor = PDFExtractor(config)
 result = extractor.extract("document.pdf", mode=ExtractionMode.SUMMARY)`}</Pre>
 
       <h2>Summary</h2>
@@ -121,10 +145,11 @@ result = extractor.extract("document.pdf", mode=ExtractionMode.SUMMARY)`}</Pre>
         This architecture provides:
       </p>
       <ul>
-        <li><strong>Testability</strong> - Each module can be tested independently</li>
-        <li><strong>Extensibility</strong> - Easy to add new extraction modes or providers</li>
+        <li><strong>Testability</strong> - Each module can be tested independently; mock the LLMProviderPort for testing</li>
+        <li><strong>Extensibility</strong> - Add new extraction modes or LLM providers without changing core logic</li>
         <li><strong>Maintainability</strong> - Clear boundaries between concerns</li>
-        <li><strong>Performance</strong> - Caching layer reduces redundant processing</li>
+        <li><strong>Performance</strong> - Caching layer reduces redundant processing; async mode for concurrent operations</li>
+        <li><strong>Flexibility</strong> - Switch between Replicate, OpenRouter, or custom providers via configuration</li>
       </ul>
     </>
   ),
@@ -134,34 +159,34 @@ result = extractor.extract("document.pdf", mode=ExtractionMode.SUMMARY)`}</Pre>
       question: 'What architecture pattern does the PDF Extractor Analyzer follow?',
       options: [
         'MVC (Model-View-Controller)',
-        'Clean modular architecture with pipeline pattern',
+        'Clean modular architecture with pipeline and port-and-adapters patterns',
         'Microservices architecture',
         'Monolithic architecture',
       ],
       correctIndex: 1,
-      explanation: 'The project follows a clean modular architecture with a pipeline pattern where data flows through processing stages coordinated by the PDFExtractor class.',
+      explanation: 'The project follows a clean modular architecture with a pipeline pattern for data flow and a port-and-adapters pattern for LLM provider integration.',
     },
     {
-      question: 'Which module is responsible for orchestrating the extraction workflow?',
+      question: 'Which module defines the contract for LLM provider adapters?',
       options: [
-        'cli.py',
-        'converter.py',
-        'pipeline.py',
         'analyzer.py',
+        'provider_factory.py',
+        'ports/llm_provider.py',
+        'config.py',
       ],
       correctIndex: 2,
-      explanation: 'The pipeline.py module contains the PDFExtractor class which serves as the main orchestrator, coordinating between converter, cache, and analyzer modules.',
+      explanation: 'The ports/llm_provider.py module defines the LLMProviderPort protocol that all provider adapters must implement.',
     },
     {
-      question: 'What are the four main layers in the architecture?',
+      question: 'What is the purpose of the port-and-adapters pattern in this project?',
       options: [
-        'Input, Processing, Output, Storage',
-        'Entry, Pipeline, Processing, Support',
-        'Frontend, Backend, Database, API',
-        'Models, Views, Controllers, Services',
+        'To manage database connections',
+        'To enable multiple LLM providers with a unified interface',
+        'To handle HTTP requests',
+        'To cache extraction results',
       ],
       correctIndex: 1,
-      explanation: 'The four layers are Entry (CLI/API), Pipeline (orchestration), Processing (converter, analyzer, cache), and Support (config, schemas, exceptions).',
+      explanation: 'The port-and-adapters pattern allows the analyzer to work with different LLM providers (Replicate, OpenRouter, etc.) through a unified LLMProviderPort interface.',
     },
     {
       question: 'How does the architecture support testability?',

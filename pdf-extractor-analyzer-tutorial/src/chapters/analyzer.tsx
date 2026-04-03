@@ -10,31 +10,38 @@ export const analyzerContent: ChapterData = {
     <>
       <h2>Module Purpose</h2>
       <p>
-        The analyzer module provides the bridge between page images and the vision LLM. It handles API communication, retry logic, prompt building, and output parsing.
+        The analyzer module provides the bridge between page images and vision LLMs through a provider-agnostic interface. It handles API communication via provider adapters, retry logic, prompt building, and output parsing. It supports both synchronous and asynchronous operations.
       </p>
 
-      <h2>ReplicateVisionAnalyzer Class</h2>
+      <h2>VisionAnalyzer Class</h2>
       <p>
-        The <code>ReplicateVisionAnalyzer</code> class encapsulates all LLM interaction logic.
+        The <code>VisionAnalyzer</code> class is the provider-agnostic analyzer that works with any LLM provider adapter implementing the <code>LLMProviderPort</code> interface.
       </p>
 
       <h3>Initialization</h3>
-      <Pre>{`def __init__(self, config: ExtractorConfig):
-    self.config = config
-    if config.replicate_api_token:
-        self.client = replicate.Client(api_token=config.replicate_api_token)
-    else:
-        self.client = replicate.Client()  # Uses REPLICATE_API_TOKEN env
-    
-    # Setup logger with configured level
-    self._logger = logging.getLogger(f"{__name__}.ReplicateVisionAnalyzer")
-    self._logger.setLevel(getattr(logging, config.log_level.upper()))`}</Pre>
+      <Pre>{`from pdf_extractor_analyzer.analyzer import VisionAnalyzer
+from pdf_extractor_analyzer.provider_factory import create_llm_provider
+
+# The provider factory creates the appropriate adapter
+provider = create_llm_provider(config)
+analyzer = VisionAnalyzer(config, provider=provider)
+
+# Or let PDFExtractor create it for you
+from pdf_extractor_analyzer import PDFExtractor
+extractor = PDFExtractor(config)  # Creates VisionAnalyzer internally`}</Pre>
+
+      <div className="info-box tip">
+        <div className="info-box-title">💡 Provider-Agnostic Design</div>
+        <p>
+          The VisionAnalyzer doesn't know which specific provider it's using. It communicates through the LLMProviderPort interface, making it easy to swap providers without changing analyzer logic.
+        </p>
+      </div>
 
       <h2>Core Methods</h2>
 
-      <h3>analyze_page()</h3>
+      <h3>analyze_page() - Synchronous</h3>
       <p>
-        The primary method for analyzing a single page image:
+        The primary method for analyzing a single page image synchronously:
       </p>
       <Pre>{`def analyze_page(
     self,
@@ -50,10 +57,32 @@ export const analyzerContent: ChapterData = {
       <ol>
         <li>Validate image byte size against config limits</li>
         <li>Build prompt based on extraction mode</li>
-        <li>Call API with retry logic and fallback model</li>
-        <li>Parse output (JSON for structured mode)</li>
+        <li>Call provider via LLMRequest with retry logic and fallback model</li>
+        <li>Parse LLMResponse (JSON for structured mode)</li>
         <li>Return extracted content</li>
       </ol>
+
+      <h3>analyze_page_async() - Asynchronous</h3>
+      <p>
+        The async version for concurrent page processing:
+      </p>
+      <Pre>{`async def analyze_page_async(
+    self,
+    *,
+    image_bytes: bytes,
+    mode: ExtractionMode,
+    structured_schema: dict | None = None,
+    correlation_id: str | None = None,
+    page_number: int | None = None,
+    rate_limit_coro: Callable[[], Awaitable[None]] | None = None,
+) -> str | dict[str, Any]:`}</Pre>
+
+      <h4>Key Differences</h4>
+      <ul>
+        <li><code>rate_limit_coro</code> - Optional coroutine for rate limiting</li>
+        <li>Uses <code>provider.agenerate()</code> instead of <code>provider.generate()</code></li>
+        <li>Supports concurrent processing with asyncio</li>
+      </ul>
 
       <h3>_build_prompt()</h3>
       <p>
@@ -92,19 +121,38 @@ export const analyzerContent: ChapterData = {
 
       <h2>Retry Logic</h2>
       <p>
-        The <code>_run_with_retries()</code> method implements exponential backoff:
+        The <code>_run_with_retries()</code> method implements exponential backoff with provider-specific retry policies:
       </p>
       <Pre>{`# Try primary model, then fallback
-for model in [config.model, config.fallback_model]:
+for model in [config.get_primary_model(), config.get_fallback_model()]:
     for attempt in range(1, config.max_retries + 1):
         try:
-            return call_api(model, prompt, image_bytes)
-        except Exception as exc:
-            if attempt == max_retries:
+            request = LLMRequest(
+                prompt=prompt,
+                model=model,
+                image_bytes=image_bytes,
+                timeout_seconds=self.config.timeout_seconds,
+                generation=self._generation_params(),
+            )
+            response = self.provider.generate(request)
+            return response.text
+        except ProviderError as exc:
+            # Respect provider's retry recommendation
+            if exc.retryable is False:
+                break
+            if attempt == self.config.max_retries:
                 break
             sleep(config.retry_backoff_seconds * (2 ** (attempt - 1)))
 
 raise AnalysisError("All models failed")`}</Pre>
+
+      <h3>Provider-Aware Retry</h3>
+      <ul>
+        <li>Providers indicate if errors are retryable via <code>ProviderError.retryable</code></li>
+        <li>Authentication errors (401) are never retried</li>
+        <li>Rate limit errors (429) are always retried with backoff</li>
+        <li>Service unavailable errors (503) are retried</li>
+      </ul>
 
       <h3>Retry Parameters</h3>
       <ul>

@@ -109,6 +109,13 @@ Batch processing (parallel workers):
 pdf-extractor ./sample-pdfs/a.pdf ./sample-pdfs/b.pdf --mode summary --max-workers 2 --pretty
 ```
 
+Batch processing (async pipeline):
+
+```bash
+# Use async for faster concurrent page processing
+pdf-extractor ./sample-pdfs/*.pdf --async --mode summary --max-workers 4 --pretty
+```
+
 Markdown extraction (saves `content.json` and `content.md`):
 
 ```bash
@@ -128,13 +135,35 @@ Fail fast on first batch error:
 pdf-extractor ./sample-pdfs/a.pdf ./sample-pdfs/b.pdf --mode summary --stop-on-error
 ```
 
-### OpenRouter CLI example
+### Provider-Specific Examples
+
+#### OpenRouter with custom model:
 
 ```bash
 pdf-extractor ./sample-pdfs/sample.pdf \
   --provider openrouter \
   --model openrouter/auto \
   --openrouter-api-key your_key \
+  --mode summary --pretty
+```
+
+#### Replicate with concurrency control:
+
+```bash
+pdf-extractor ./large-document.pdf \
+  --provider replicate \
+  --replicate-max-concurrent-calls 5 \
+  --mode full_text --pretty
+```
+
+#### High-throughput batch (async):
+
+```bash
+pdf-extractor ./docs/*.pdf \
+  --async \
+  --max-workers 6 \
+  --max-concurrent-pages 10 \
+  --async-rps 12.0 \
   --mode summary --pretty
 ```
 
@@ -185,6 +214,30 @@ for item in batch:
 # Markdown extraction (outputs both content.json and content.md)
 md_result = extractor.extract("document.pdf", mode=ExtractionMode.MARKDOWN)
 print(md_result.model_dump())
+
+# Async extraction (faster for multi-page documents)
+import asyncio
+
+async def extract_async_example():
+    extractor = PDFExtractor(config)
+    result = await extractor.extract_async("document.pdf", mode=ExtractionMode.SUMMARY)
+    print(result.model_dump())
+
+asyncio.run(extract_async_example())
+
+# Async batch extraction
+async def extract_batch_async():
+    extractor = PDFExtractor(config)
+    results = await extractor.extract_many_async(
+        ["invoice.pdf", "receipt.pdf"],
+        mode=ExtractionMode.SUMMARY,
+        max_workers=4,
+        continue_on_error=True,
+    )
+    for item in results:
+        print(item.model_dump())
+
+asyncio.run(extract_batch_async())
 ```
 
 ## Output Shape
@@ -273,6 +326,7 @@ The LLM layer follows a port-and-adapters design:
 
 - Port contract: `src/pdf_extractor_analyzer/ports/llm_provider.py`
 - Replicate adapter: `src/pdf_extractor_analyzer/adapters/llm/replicate_adapter.py`
+- OpenRouter adapter: `src/pdf_extractor_analyzer/adapters/llm/openrouter_adapter.py`
 - Provider factory: `src/pdf_extractor_analyzer/provider_factory.py`
 
 To add a new provider adapter:
@@ -281,13 +335,152 @@ To add a new provider adapter:
 3. Add provider-specific config and CLI flags
 4. Add provider-specific tests (unit + optional live integration marker)
 
-## Current Scope
+## Concurrency Model
 
+The application uses a two-level concurrency model:
+
+### Level 1: Document Concurrency (`--max-workers`)
+Controls how many **PDF files** to process in parallel.
+
+```bash
+# Process 10 PDFs, 2 at a time (applies to all providers)
+pdf-extractor ./docs/*.pdf --mode summary --max-workers 2
+```
+
+### Level 2: Page Concurrency (`--max-concurrent-pages`, provider-specific settings)
+Controls how many **pages within a document** are processed concurrently.
+
+```bash
+# Process 6 pages concurrently (applies to all providers)
+pdf-extractor ./doc.pdf --mode full_text --max-concurrent-pages 6
+```
+
+### Provider-Specific Concurrency
+
+Different providers handle concurrent API calls differently:
+
+#### Replicate Provider
+
+Replicate uses an internal semaphore controlled by `--replicate-max-concurrent-calls`:
+
+```bash
+# Allow 3 parallel Replicate API calls
+pdf-extractor ./doc.pdf \
+  --provider replicate \
+  --replicate-max-concurrent-calls 3 \
+  --mode full_text
+```
+
+**How it works:**
+- The Replicate adapter creates an internal semaphore with this limit
+- When async client falls back to sync execution, this semaphore prevents API overload
+- Does NOT affect `--max-concurrent-pages` (they work together)
+
+```python
+# In ReplicateLLMAdapter
+self._sync_replicate_semaphore = asyncio.Semaphore(
+    config.get_replicate_max_concurrent_calls()
+)
+```
+
+#### OpenRouter Provider
+
+OpenRouter uses general concurrency settings via `--max-concurrent-pages` and `--async-rps`:
+
+```bash
+# OpenRouter: uses general settings (no Replicate-specific flag)
+pdf-extractor ./doc.pdf \
+  --provider openrouter \
+  --max-concurrent-pages 6 \
+  --async-rps 10.0 \
+  --mode full_text
+```
+
+**How it works:**
+- OpenRouter does NOT have an internal semaphore
+- Relies on pipeline-level `--max-concurrent-pages` semaphore for concurrency control
+- Uses `--async-rps` (AsyncRateLimiter) for request rate limiting
+- **`--replicate-max-concurrent-calls` flag is ignored when using OpenRouter**
+
+### Combined Example: Full Concurrency Stack
+
+```bash
+# Maximum throughput configuration
+pdf-extractor ./docs/*.pdf \
+  --provider replicate \
+  --mode full_text \
+  --max-workers 4 \              # 4 PDFs at once
+  --max-concurrent-pages 8 \       # 8 pages per doc
+  --replicate-max-concurrent-calls 3 \  # 3 parallel API calls (Replicate)
+  --async-rps 12.0               # 12 requests/second rate limit
+```
+
+This would process:
+- **4 PDFs simultaneously**
+- Within each PDF, **8 pages concurrently**
+- The Replicate adapter makes **up to 3 API calls in parallel**
+- Respects a **12 requests/second** rate limit
+
+### Concurrency Settings Summary
+
+| Setting | Scope | Default | Replicate | OpenRouter |
+|---------|--------|---------|------------|------------|
+| `--max-workers` | Multiple PDFs | `4` | ✅ | ✅ |
+| `--max-concurrent-pages` | Pages per document | `4` | ✅ | ✅ |
+| `--async-rps` | Request rate limit | `8.0` | ✅ | ✅ |
+| `--replicate-max-concurrent-calls` | Replicate API calls | `1` | ✅ | ❌ **Ignored** |
+
+### Examples by Provider
+
+#### Replicate Provider
+```bash
+# Standard setup
+pdf-extractor ./doc.pdf --provider replicate --mode summary
+
+# High throughput (multi-page PDF)
+pdf-extractor ./large.pdf \
+  --provider replicate \
+  --mode full_text \
+  --max-concurrent-pages 10 \
+  --replicate-max-concurrent-calls 5
+
+# Batch with concurrent API calls
+pdf-extractor ./docs/*.pdf \
+  --provider replicate \
+  --mode summary \
+  --max-workers 4 \
+  --replicate-max-concurrent-calls 3
+```
+
+#### OpenRouter Provider
+```bash
+# Standard setup
+pdf-extractor ./doc.pdf --provider openrouter --mode summary
+
+# High throughput (multi-page PDF)
+pdf-extractor ./large.pdf \
+  --provider openrouter \
+  --mode full_text \
+  --max-concurrent-pages 10 \
+  --async-rps 10.0
+# Batch with rate limiting
+pdf-extractor ./docs/*.pdf \
+  --provider openrouter \
+  --mode summary \
+  --max-workers 4 \
+  --async-rps 8.0
+```
+
+**Key difference:** OpenRouter uses `--max-concurrent-pages` and `--async-rps` for all concurrency control, while Replicate has the additional `--replicate-max-concurrent-calls` for internal API call limiting.
+
+## Current Scope
 - Vision-driven extraction pipeline for text/scanned/mixed PDFs
 - Structured mode uses Pydantic schema classes only
 - `extract_many` supports concurrent processing of multiple PDFs
+- `extract_many_async` supports async batch processing
 - Replicate adapter implemented
 - OpenRouter adapter implemented
+- Asynchronous extraction (`extract_async`, `extract_many_async`)
 
 ## Testing
 

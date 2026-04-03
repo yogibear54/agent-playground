@@ -7,4 +7,5 @@ export { analyzerContent } from './analyzer';
 export { pipelineContent } from './pipeline';
 export { schemasContent } from './schemas';
 export { exceptionsContent } from './exceptions';
+export { providersContent } from './providers';
 export { cliContent } from './cli';

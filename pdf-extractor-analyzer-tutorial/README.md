@@ -8,7 +8,7 @@ This tutorial is based on the following project and commit:
 |----------|-------|
 | **Source Project** | pdf-extractor-analyzer |
 | **Source Location** | `/home/yogibear54/Projects/lotus-creations.com/_PROJECTS/agent-playground/pdf-extractor-analyzer/` |
-| **Git Commit** | `6f07190ebe3f95116820105f72a078e33eeeb4b6` |
+| **Based On Commit** | `6f07190ebe3f95116820105f72a078e33eeeb4b6` (Tutorial covers features and code up to this commit) |
 
 ---
 

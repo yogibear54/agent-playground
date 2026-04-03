@@ -11,6 +11,7 @@ class ExtractionMode(str, Enum):
     STRUCTURED = "structured"
     SUMMARY = "summary"
     MARKDOWN = "markdown"
+    PROMPT = "prompt"
 
 
 class ExtractionResult(BaseModel):

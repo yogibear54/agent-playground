@@ -79,6 +79,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--cache-dir", default="./cache", help="Cache directory path")
     parser.add_argument("--cache-ttl-days", type=int, default=7, help="Persistent cache TTL")
     parser.add_argument("--schema-import", help="Pydantic schema import path: module:ClassName")
+    parser.add_argument(
+        "--prompt",
+        default=None,
+        help="Custom prompt for PROMPT extraction mode. "
+        "Use this to provide your own extraction instructions to the LLM.",
+    )
     parser.add_argument("--max-pages", type=int, default=None, help="Optional page limit")
     parser.add_argument("--max-workers", type=int, default=4, help="Parallel workers for multiple PDFs")
     parser.add_argument(
@@ -151,6 +157,9 @@ def main(argv: list[str] | None = None) -> int:
             if not args.schema_import:
                 parser.error("Structured mode requires --schema-import module:ClassName")
             schema_class = _schema_from_import(args.schema_import)
+        if mode == ExtractionMode.PROMPT:
+            if not args.prompt:
+                parser.error("PROMPT mode requires --prompt 'Your custom prompt text'")
 
         if args.max_concurrent_replicate_calls is not None:
             warnings.warn(
@@ -215,7 +224,9 @@ def main(argv: list[str] | None = None) -> int:
         if args.use_async:
             if len(args.pdf_paths) == 1:
                 result = asyncio.run(
-                    extractor.extract_async(args.pdf_paths[0], mode=mode, schema=schema_class)
+                    extractor.extract_async(
+                        args.pdf_paths[0], mode=mode, schema=schema_class, prompt=args.prompt
+                    )
                 )
                 payload = result.model_dump()
             else:
@@ -224,6 +235,7 @@ def main(argv: list[str] | None = None) -> int:
                         args.pdf_paths,
                         mode=mode,
                         schema=schema_class,
+                        prompt=args.prompt,
                         max_workers=args.max_workers,
                         continue_on_error=not args.stop_on_error,
                     )
@@ -231,13 +243,16 @@ def main(argv: list[str] | None = None) -> int:
                 payload = [item.model_dump() for item in results]
         else:
             if len(args.pdf_paths) == 1:
-                result = extractor.extract(args.pdf_paths[0], mode=mode, schema=schema_class)
+                result = extractor.extract(
+                    args.pdf_paths[0], mode=mode, schema=schema_class, prompt=args.prompt
+                )
                 payload = result.model_dump()
             else:
                 results = extractor.extract_many(
                     args.pdf_paths,
                     mode=mode,
                     schema=schema_class,
+                    prompt=args.prompt,
                     max_workers=args.max_workers,
                     continue_on_error=not args.stop_on_error,
                 )

@@ -6,7 +6,7 @@ Image-first PDF extraction and analysis for mixed or unknown PDF formats.
 
 - PDF -> page images via PyMuPDF
 - Vision analysis via pluggable LLM provider adapters (default provider: `replicate`)
-- Modes: `full_text`, `summary`, `structured`, `markdown`
+- Modes: `full_text`, `summary`, `structured`, `markdown`, `prompt`
 - Structured mode with user-provided Pydantic schema classes
 - Markdown mode outputs both `content.json` and `content.md` with LLM-generated Markdown
 - Cache modes: `persistent`, `ephemeral`, `disabled`
@@ -297,6 +297,7 @@ Batch extraction returns a list of items:
 | `summary` | String | 3-5 sentence summary with key details |
 | `structured` | JSON dict | Extracts data matching a Pydantic schema |
 | `markdown` | String (Markdown) | Converts page to Markdown with proper formatting |
+| `prompt` | String | Uses a custom prompt for extraction (see Prompt Mode below) |
 
 ### Markdown Mode
 
@@ -309,6 +310,33 @@ The `markdown` mode instructs the LLM to:
 - Preserve document structure and hierarchy
 
 Output is aggregated across pages with `---` separators and page headers (`## Page N`).
+
+### Prompt Mode
+
+The `prompt` mode allows you to submit your own custom prompt for PDF extraction. This gives you full control over what information to extract and how to format it.
+
+**CLI Usage:**
+```bash
+pdf-extractor ./sample-pdfs/sample.pdf --mode prompt --prompt "Extract all dates, names, and monetary amounts from this document"
+```
+
+**Python Usage:**
+```python
+from pdf_extractor_analyzer import ExtractionMode, PDFExtractor
+
+result = extractor.extract(
+    "document.pdf",
+    mode=ExtractionMode.PROMPT,
+    prompt="Extract all dates, names, and monetary amounts from this document"
+)
+print(result.content)
+```
+
+**Tips for writing effective prompts:**
+- Be specific about what information to extract
+- Include formatting instructions (e.g., "list as bullet points", "return as JSON")
+- Specify the structure if you need a particular output format
+- Include examples if the extraction is complex
 
 ## Cached Output Files
 

@@ -69,6 +69,7 @@ class PDFExtractor:
         *,
         mode: ExtractionMode,
         schema: type[BaseModel] | None = None,
+        prompt: str | None = None,
         max_workers: int = 4,
         continue_on_error: bool = True,
     ) -> list[BatchExtractionItem]:
@@ -82,7 +83,7 @@ class PDFExtractor:
 
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             futures = {
-                executor.submit(self._run_single_batch_item, path, mode, schema): idx
+                executor.submit(self._run_single_batch_item, path, mode, schema, prompt): idx
                 for idx, path in enumerate(normalized_paths)
             }
 
@@ -125,18 +126,20 @@ class PDFExtractor:
         path: Path,
         mode: ExtractionMode,
         schema: type[BaseModel] | None,
+        prompt: str | None,
     ) -> ExtractionResult:
         worker = self._make_worker()
-        return worker.extract(path, mode=mode, schema=schema)
+        return worker.extract(path, mode=mode, schema=schema, prompt=prompt)
 
     async def _run_single_batch_item_async(
         self,
         path: Path,
         mode: ExtractionMode,
         schema: type[BaseModel] | None,
+        prompt: str | None,
     ) -> ExtractionResult:
         worker = self._make_worker()
-        return await worker.extract_async(path, mode=mode, schema=schema)
+        return await worker.extract_async(path, mode=mode, schema=schema, prompt=prompt)
 
     async def extract_many_async(
         self,
@@ -144,6 +147,7 @@ class PDFExtractor:
         *,
         mode: ExtractionMode,
         schema: type[BaseModel] | None = None,
+        prompt: str | None = None,
         max_workers: int = 4,
         continue_on_error: bool = True,
     ) -> list[BatchExtractionItem]:
@@ -158,7 +162,7 @@ class PDFExtractor:
         async def process(idx: int, path: Path) -> tuple[int, BatchExtractionItem]:
             async with semaphore:
                 try:
-                    result = await self._run_single_batch_item_async(path, mode, schema)
+                    result = await self._run_single_batch_item_async(path, mode, schema, prompt)
                     item = BatchExtractionItem(
                         pdf_path=str(path),
                         status=BatchItemStatus.SUCCESS,
@@ -249,6 +253,7 @@ class PDFExtractor:
         self,
         mode: ExtractionMode,
         schema: type[BaseModel] | None,
+        prompt: str | None = None,
     ) -> dict[str, Any]:
         """Build extraction parameters dict for cache invalidation checks."""
         primary_model = self.config.get_primary_model()
@@ -269,6 +274,8 @@ class PDFExtractor:
         }
         if schema is not None:
             params["schema"] = schema.model_json_schema()
+        if prompt is not None:
+            params["prompt"] = prompt
         return params
 
     def extract(
@@ -277,16 +284,22 @@ class PDFExtractor:
         *,
         mode: ExtractionMode,
         schema: type[BaseModel] | None = None,
+        prompt: str | None = None,
     ) -> ExtractionResult:
         path = Path(pdf_path).expanduser().resolve()
         self._validate_pdf_path(path)
 
         if mode == ExtractionMode.STRUCTURED and schema is None:
             raise ValueError("Structured mode requires a Pydantic schema class")
+        if mode == ExtractionMode.PROMPT and not prompt:
+            raise ValueError(
+                "PROMPT extraction mode requires a custom prompt. "
+                "Provide a prompt via the 'prompt' parameter."
+            )
 
         source_hash = compute_content_hash(path)
         schema_json = schema.model_json_schema() if schema is not None else None
-        extraction_params = self._get_extraction_params(mode, schema)
+        extraction_params = self._get_extraction_params(mode, schema, prompt)
 
         work_dir = self.cache.resolve_work_dir(source_hash)
 
@@ -342,6 +355,7 @@ class PDFExtractor:
                         structured_schema=schema_json,
                         correlation_id=correlation_id,
                         page_number=page_num,
+                        custom_prompt=prompt,
                     )
                 )
 
@@ -405,16 +419,22 @@ class PDFExtractor:
         *,
         mode: ExtractionMode,
         schema: type[BaseModel] | None = None,
+        prompt: str | None = None,
     ) -> ExtractionResult:
         path = Path(pdf_path).expanduser().resolve()
         self._validate_pdf_path(path)
 
         if mode == ExtractionMode.STRUCTURED and schema is None:
             raise ValueError("Structured mode requires a Pydantic schema class")
+        if mode == ExtractionMode.PROMPT and not prompt:
+            raise ValueError(
+                "PROMPT extraction mode requires a custom prompt. "
+                "Provide a prompt via the 'prompt' parameter."
+            )
 
         source_hash = compute_content_hash(path)
         schema_json = schema.model_json_schema() if schema is not None else None
-        extraction_params = self._get_extraction_params(mode, schema)
+        extraction_params = self._get_extraction_params(mode, schema, prompt)
 
         work_dir = self.cache.resolve_work_dir(source_hash)
 
@@ -456,6 +476,7 @@ class PDFExtractor:
                             correlation_id=correlation_id,
                             page_number=page_index,
                             rate_limit_coro=rate_limiter.acquire,
+                            custom_prompt=prompt,
                         )
                         return page_index, output, None
                     except Exception as exc:
@@ -539,12 +560,18 @@ class PDFExtractor:
         *,
         mode: ExtractionMode,
         schema: type[BaseModel] | None = None,
+        prompt: str | None = None,
     ) -> AsyncIterator[tuple[int, str | dict[str, Any] | None, str | None]]:
         path = Path(pdf_path).expanduser().resolve()
         self._validate_pdf_path(path)
 
         if mode == ExtractionMode.STRUCTURED and schema is None:
             raise ValueError("Structured mode requires a Pydantic schema class")
+        if mode == ExtractionMode.PROMPT and not prompt:
+            raise ValueError(
+                "PROMPT extraction mode requires a custom prompt. "
+                "Provide a prompt via the 'prompt' parameter."
+            )
 
         source_hash = compute_content_hash(path)
         schema_json = schema.model_json_schema() if schema is not None else None
@@ -566,6 +593,7 @@ class PDFExtractor:
                             correlation_id=correlation_id,
                             page_number=page_index,
                             rate_limit_coro=rate_limiter.acquire,
+                            custom_prompt=prompt,
                         )
                         return page_index, output, None
                     except Exception as exc:
@@ -655,6 +683,11 @@ class PDFExtractor:
             chunks = [f"## Page {numbers[idx]}\n\n{value}" for idx, value in enumerate(outputs)]
             return "\n\n---\n\n".join(chunks)
 
+        if mode == ExtractionMode.PROMPT:
+            # For custom prompt mode, aggregate outputs with page separators
+            chunks = [f"[Page {numbers[idx]}]\n\n{value}" for idx, value in enumerate(outputs)]
+            return "\n\n---\n\n".join(chunks)
+
         structured_outputs = [value for value in outputs if isinstance(value, dict)]
         merged = self._merge_dicts(structured_outputs)
 
@@ -699,6 +732,11 @@ class PDFExtractor:
 
         if mode == ExtractionMode.MARKDOWN:
             chunks = [f"## Page {numbers[idx]}\n\n{value}" for idx, value in enumerate(outputs)]
+            return "\n\n---\n\n".join(chunks)
+
+        if mode == ExtractionMode.PROMPT:
+            # For custom prompt mode, aggregate outputs with page separators
+            chunks = [f"[Page {numbers[idx]}]\n\n{value}" for idx, value in enumerate(outputs)]
             return "\n\n---\n\n".join(chunks)
 
         structured_outputs = [value for value in outputs if isinstance(value, dict)]

@@ -386,6 +386,7 @@ def test_batch_processing_analyzer_reuse(monkeypatch, tmp_path):
                 path=fake_pdf,
                 mode=ExtractionMode.FULL_TEXT,
                 schema=None,
+                prompt=None,
             )
 
     # Verify analyze_page was called (which means the shared analyzer was used)

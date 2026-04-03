@@ -11,7 +11,7 @@ class FakeExtractor:
     def __init__(self, config):
         self.config = config
 
-    def extract(self, pdf_path, *, mode, schema=None):
+    def extract(self, pdf_path, *, mode, schema=None, prompt=None):
         from pdf_extractor_analyzer.schemas import ExtractionResult
 
         return ExtractionResult(extraction_mode=mode, content="ok", metadata={})

@@ -35,9 +35,11 @@ class ExtractorConfig:
     LEGACY_DEFAULT_MODEL: ClassVar[str] = "openai/gpt-4o"
     LEGACY_DEFAULT_FALLBACK_MODEL: ClassVar[str | None] = "openai/gpt-4o-mini"
     
-    # OPENROUTER_DEFAULT_MODEL: ClassVar[str] = "xiaomi/mimo-v2-omni"
-    # OPENROUTER_DEFAULT_MODEL: ClassVar[str] = "moonshotai/kimi-k2.5"
-    OPENROUTER_DEFAULT_MODEL: ClassVar[str] = "xiaomi/mimo-v2-omni"
+    # "xiaomi/mimo-v2-omni"
+    # "moonshotai/kimi-k2.5"
+    # "minimax/minimax-01"
+    
+    OPENROUTER_DEFAULT_MODEL: ClassVar[str] = "minimax/minimax-01"
     OPENROUTER_DEFAULT_FALLBACK_MODEL: ClassVar[str | None] = "qwen/qwen3.5-flash-02-23"
 
     dpi: int = 72

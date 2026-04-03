@@ -111,6 +111,7 @@ class VisionAnalyzer:
         structured_schema: dict[str, Any] | None = None,
         correlation_id: str | None = None,
         page_number: int | None = None,
+        custom_prompt: str | None = None,
     ) -> str | dict[str, Any]:
         """Analyze a single page image."""
         self._validate_image_bytes(image_bytes)
@@ -128,7 +129,11 @@ class VisionAnalyzer:
         self._logger.info("Starting page analysis", extra=extra)
         start_time = time.time()
 
-        prompt = self._build_prompt(mode=mode, structured_schema=structured_schema)
+        prompt = self._build_prompt(
+            mode=mode,
+            structured_schema=structured_schema,
+            custom_prompt=custom_prompt,
+        )
 
         try:
             raw = self._run_with_retries(
@@ -166,6 +171,7 @@ class VisionAnalyzer:
         correlation_id: str | None = None,
         page_number: int | None = None,
         rate_limit_coro: Callable[[], Awaitable[None]] | None = None,
+        custom_prompt: str | None = None,
     ) -> str | dict[str, Any]:
         """Analyze a single page image asynchronously."""
         self._validate_image_bytes(image_bytes)
@@ -182,7 +188,11 @@ class VisionAnalyzer:
         self._logger.info("Starting async page analysis", extra=extra)
         start_time = time.time()
 
-        prompt = self._build_prompt(mode=mode, structured_schema=structured_schema)
+        prompt = self._build_prompt(
+            mode=mode,
+            structured_schema=structured_schema,
+            custom_prompt=custom_prompt,
+        )
 
         try:
             raw = await self._run_with_retries_async(
@@ -322,6 +332,7 @@ class VisionAnalyzer:
         *,
         mode: ExtractionMode,
         structured_schema: dict[str, Any] | None,
+        custom_prompt: str | None = None,
     ) -> str:
         if mode == ExtractionMode.FULL_TEXT:
             return (
@@ -346,6 +357,14 @@ class VisionAnalyzer:
                 "- Extract tables as Markdown tables where possible\n"
                 "- Include all relevant content, do not summarize or omit details"
             )
+
+        if mode == ExtractionMode.PROMPT:
+            if not custom_prompt:
+                raise ValueError(
+                    "Custom prompt is required for PROMPT extraction mode. "
+                    "Provide a prompt via the 'prompt' parameter."
+                )
+            return custom_prompt
 
         schema_text = ""
         if structured_schema is not None:

@@ -23,17 +23,17 @@ class FakeExtractor:
         self.config = config
         FakeExtractor.last_config = config
 
-    def extract(self, pdf_path, *, mode, schema=None):
+    def extract(self, pdf_path, *, mode, schema=None, prompt=None):
         return ExtractionResult(
             extraction_mode=mode,
             content=f"single:{pdf_path}",
             metadata={"ok": True},
         )
 
-    async def extract_async(self, pdf_path, *, mode, schema=None):
-        return self.extract(pdf_path, mode=mode, schema=schema)
+    async def extract_async(self, pdf_path, *, mode, schema=None, prompt=None):
+        return self.extract(pdf_path, mode=mode, schema=schema, prompt=prompt)
 
-    def extract_many(self, pdf_paths, *, mode, schema=None, max_workers=4, continue_on_error=True):
+    def extract_many(self, pdf_paths, *, mode, schema=None, prompt=None, max_workers=4, continue_on_error=True):
         return [
             BatchExtractionItem(
                 pdf_path=str(path),
@@ -43,11 +43,12 @@ class FakeExtractor:
             for path in pdf_paths
         ]
 
-    async def extract_many_async(self, pdf_paths, *, mode, schema=None, max_workers=4, continue_on_error=True):
+    async def extract_many_async(self, pdf_paths, *, mode, schema=None, prompt=None, max_workers=4, continue_on_error=True):
         return self.extract_many(
             pdf_paths,
             mode=mode,
             schema=schema,
+            prompt=prompt,
             max_workers=max_workers,
             continue_on_error=continue_on_error,
         )
@@ -117,7 +118,7 @@ class FailingExtractor:
     def __init__(self, config):
         self.config = config
 
-    def extract(self, pdf_path, *, mode, schema=None):
+    def extract(self, pdf_path, *, mode, schema=None, prompt=None):
         raise RuntimeError("Simulated extraction failure")
 
 
@@ -139,7 +140,7 @@ def test_cli_returns_exit_code_2_on_validation_error(monkeypatch, capsys):
         def __init__(self, config):
             config.validate()  # This will raise if validation fails
 
-        def extract(self, pdf_path, *, mode, schema=None):
+        def extract(self, pdf_path, *, mode, schema=None, prompt=None):
             raise ValueError("Invalid configuration")
 
     monkeypatch.setattr(cli, "PDFExtractor", RaisingExtractor)
@@ -159,7 +160,7 @@ def test_cli_returns_exit_code_130_on_keyboard_interrupt(monkeypatch, capsys):
         def __init__(self, config):
             self.config = config
 
-        def extract(self, pdf_path, *, mode, schema=None):
+        def extract(self, pdf_path, *, mode, schema=None, prompt=None):
             raise KeyboardInterrupt()
 
     monkeypatch.setattr(cli, "PDFExtractor", InterruptExtractor)
@@ -268,3 +269,26 @@ def test_cli_legacy_replicate_flags_still_work(monkeypatch, capsys):
     assert cfg.replicate.max_concurrent_calls == 3
     assert cfg.replicate_api_token == "rep-token"
     assert cfg.replicate.api_token == "rep-token"
+
+
+def test_cli_prompt_mode_requires_prompt(monkeypatch):
+    """Test that prompt mode requires --prompt argument."""
+    monkeypatch.setattr(cli, "PDFExtractor", FakeExtractor)
+    
+    with pytest.raises(SystemExit) as exc_info:
+        cli.main(["/tmp/a.pdf", "--mode", "prompt"])
+    assert exc_info.value.code == 2  # Validation error
+
+
+def test_cli_prompt_mode_with_prompt(monkeypatch, capsys):
+    """Test that prompt mode works with --prompt argument."""
+    monkeypatch.setattr(cli, "PDFExtractor", FakeExtractor)
+    
+    code = cli.main([
+        "/tmp/a.pdf",
+        "--mode", "prompt",
+        "--prompt", "Extract all dates from this document"
+    ])
+    assert code == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["extraction_mode"] == ExtractionMode.PROMPT.value

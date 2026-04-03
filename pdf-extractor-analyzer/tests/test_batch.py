@@ -11,7 +11,7 @@ from pdf_extractor_analyzer.schemas import BatchItemStatus, ExtractionMode, Extr
 def test_extract_many_preserves_input_order(monkeypatch):
     extractor = PDFExtractor(ExtractorConfig())
 
-    def fake_single(self, path, mode, schema):
+    def fake_single(self, path, mode, schema, prompt):
         return ExtractionResult(
             extraction_mode=mode,
             content=f"ok:{Path(path).name}",
@@ -33,7 +33,7 @@ def test_extract_many_preserves_input_order(monkeypatch):
 def test_extract_many_continue_on_error(monkeypatch):
     extractor = PDFExtractor(ExtractorConfig())
 
-    def fake_single(self, path, mode, schema):
+    def fake_single(self, path, mode, schema, prompt):
         if Path(path).name == "b.pdf":
             raise RuntimeError("boom")
         return ExtractionResult(extraction_mode=mode, content="ok", metadata={})
@@ -54,7 +54,7 @@ def test_extract_many_continue_on_error(monkeypatch):
 def test_extract_many_async_preserves_input_order(monkeypatch):
     extractor = PDFExtractor(ExtractorConfig())
 
-    async def fake_single_async(self, path, mode, schema):
+    async def fake_single_async(self, path, mode, schema, prompt):
         await asyncio.sleep(0)
         return ExtractionResult(
             extraction_mode=mode,
@@ -79,7 +79,7 @@ def test_extract_many_async_preserves_input_order(monkeypatch):
 def test_extract_many_async_continue_on_error(monkeypatch):
     extractor = PDFExtractor(ExtractorConfig())
 
-    async def fake_single_async(self, path, mode, schema):
+    async def fake_single_async(self, path, mode, schema, prompt):
         if Path(path).name == "b.pdf":
             raise RuntimeError("boom")
         return ExtractionResult(extraction_mode=mode, content="ok", metadata={})
@@ -101,7 +101,7 @@ def test_extract_many_async_continue_on_error(monkeypatch):
 def test_extract_many_stop_on_error(monkeypatch):
     extractor = PDFExtractor(ExtractorConfig())
 
-    def fake_single(self, path, mode, schema):
+    def fake_single(self, path, mode, schema, prompt):
         raise RuntimeError("boom")
 
     monkeypatch.setattr(PDFExtractor, "_run_single_batch_item", fake_single)

@@ -8,7 +8,13 @@ This tutorial is based on the following project and commit:
 |----------|-------|
 | **Source Project** | pdf-extractor-analyzer |
 | **Source Location** | `/home/yogibear54/Projects/lotus-creations.com/_PROJECTS/agent-playground/pdf-extractor-analyzer/` |
-| **Based On Commit** | `6f07190ebe3f95116820105f72a078e33eeeb4b6` (Tutorial covers features and code up to this commit) |
+| **Based On Commit** | `753c9dd` (Tutorial covers features and code up to this commit) |
+
+> **Note:** This tutorial includes documentation for the following features added since the initial commit:
+> - Custom `prompt` extraction mode for tailored PDF extraction instructions
+> - Async batch extraction with `extract_many_async()`
+> - Two-level concurrency model with document and page-level control
+> - OpenRouter provider with automatic model defaults
 
 ---
 

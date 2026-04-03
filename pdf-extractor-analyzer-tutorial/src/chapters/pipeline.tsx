@@ -90,6 +90,7 @@ class PDFExtractor:
     *,
     mode: ExtractionMode,
     schema: type[BaseModel] | None = None,
+    prompt: str | None = None,
 ) -> ExtractionResult:
     # Similar to extract() but uses asyncio for concurrent pages
     semaphore = asyncio.Semaphore(self.config.max_concurrent_pages)
@@ -153,6 +154,7 @@ def _run_single_batch_item(self, path, mode, schema):
     *,
     mode: ExtractionMode,
     schema: type[BaseModel] | None = None,
+    prompt: str | None = None,
     max_workers: int = 4,
     continue_on_error: bool = True,
 ) -> list[BatchExtractionItem]:
@@ -202,6 +204,7 @@ def _run_single_batch_item(self, path, mode, schema):
           <tr><td><code>summary</code></td><td><code>Page 1: summary\\nPage 2: summary\\n...</code></td></tr>
           <tr><td><code>markdown</code></td><td><code>## Page 1\\n\\ncontent\\n\\n---\\n\\n## Page 2...</code></td></tr>
           <tr><td><code>structured</code></td><td>Deep merge of dicts across pages</td></tr>
+          <tr><td><code>prompt</code></td><td>Custom format based on user-provided prompt</td></tr>
         </tbody>
       </table>
 

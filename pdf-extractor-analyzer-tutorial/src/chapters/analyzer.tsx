@@ -51,6 +51,7 @@ extractor = PDFExtractor(config)  # Creates VisionAnalyzer internally`}</Pre>
     structured_schema: dict | None = None,
     correlation_id: str | None = None,
     page_number: int | None = None,
+    custom_prompt: str | None = None,
 ) -> str | dict[str, Any]:`}</Pre>
 
       <h4>Processing Flow</h4>
@@ -95,6 +96,7 @@ extractor = PDFExtractor(config)  # Creates VisionAnalyzer internally`}</Pre>
           <tr><td><code>summary</code></td><td>"Summarize in 3-5 concise sentences. Include key numbers, dates"</td></tr>
           <tr><td><code>markdown</code></td><td>"Convert to Markdown with proper syntax: headings, bold, lists, code blocks"</td></tr>
           <tr><td><code>structured</code></td><td>"Extract structured information...return JSON only...Use null for unknown"</td></tr>
+          <tr><td><code>prompt</code></td><td>Uses the custom <code>prompt</code> parameter directly</td></tr>
         </tbody>
       </table>
 
@@ -244,6 +246,17 @@ self._logger.info("Starting page analysis", extra={
       options: ['DEBUG', 'INFO', 'WARNING', 'ERROR'],
       correctIndex: 2,
       explanation: 'The default log_level is "WARNING", which reduces noise while still capturing important issues.',
+    },
+    {
+      question: 'What happens when using the prompt extraction mode without providing a custom prompt?',
+      options: [
+        'Uses a default prompt',
+        'Raises ValueError',
+        'Returns empty content',
+        'Uses summary mode fallback',
+      ],
+      correctIndex: 1,
+      explanation: 'When using PROMPT extraction mode, a ValueError is raised if the custom_prompt parameter is not provided.',
     },
   ],
 };

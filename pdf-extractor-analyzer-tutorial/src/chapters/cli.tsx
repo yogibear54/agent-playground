@@ -30,9 +30,10 @@ pdf-extractor --help`}</Pre>
         <thead><tr><th>Option</th><th>Default</th><th>Description</th></tr></thead>
         <tbody>
           <tr><td><code>--provider</code></td><td>replicate</td><td>LLM provider: replicate, openrouter</td></tr>
-          <tr><td><code>--mode</code></td><td>full_text</td><td>Extraction mode: full_text, summary, structured, markdown</td></tr>
+          <tr><td><code>--mode</code></td><td>full_text</td><td>Extraction mode: full_text, summary, structured, markdown, prompt</td></tr>
           <tr><td><code>--schema-import</code></td><td>None</td><td>Pydantic schema import path for structured mode</td></tr>
-          <tr><td><code>--model</code></td><td>openai/gpt-4o</td><td>Primary model (provider-specific)</td></tr>
+          <tr><td><code>--prompt</code></td><td>None</td><td>Custom prompt for PROMPT extraction mode</td></tr>
+          <tr><td><code>--model</code></td><td>Provider-specific</td><td>Primary model (default: openai/gpt-4o for replicate, auto for openrouter)</td></tr>
           <tr><td><code>--fallback-model</code></td><td>openai/gpt-4o-mini</td><td>Fallback model on primary failure</td></tr>
         </tbody>
       </table>
@@ -147,6 +148,31 @@ pdf-extractor ./invoice.pdf \\
       <h3>Markdown Extraction</h3>
       <Pre>{`# Extract as Markdown
 pdf-extractor ./document.pdf --mode markdown --cache-mode persistent --pretty`}</Pre>
+
+      <h3>Custom Prompt Extraction</h3>
+      <p>
+        The <code>prompt</code> mode allows you to provide custom instructions for tailored extraction:
+      </p>
+      <Pre>{`# Extract specific information with custom prompt
+pdf-extractor ./document.pdf \
+  --mode prompt \
+  --prompt "Extract all dates, names, and monetary amounts from this document" \
+  --pretty
+
+# Ask for structured analysis
+pdf-extractor ./invoice.pdf \
+  --mode prompt \
+  --prompt "Identify the vendor name, invoice number, and total amount due" \
+  --provider openrouter \
+  --pretty
+
+# Combine with async for batch custom extraction
+pdf-extractor ./docs/*.pdf \
+  --mode prompt \
+  --prompt "List all action items and their assigned owners" \
+  --async \
+  --max-workers 4 \
+  --pretty`}</Pre>
 
       <h3>Batch Processing</h3>
       <Pre>{`# Process multiple PDFs with 2 workers
@@ -272,6 +298,17 @@ exit_code = main([
       options: ['0', '1', '2', '130'],
       correctIndex: 2,
       explanation: 'Exit code 2 is for argument/validation errors (like missing schema for structured mode), while 1 is for general errors and 130 forSIGINT.',
+    },
+    {
+      question: 'What is required when using the prompt extraction mode?',
+      options: [
+        'A Pydantic schema',
+        'The --prompt option with custom instructions',
+        'An API token',
+        'PDF must be under 10 pages',
+      ],
+      correctIndex: 1,
+      explanation: 'The prompt mode requires the --prompt option to provide custom extraction instructions to the LLM.',
     },
   ],
 };

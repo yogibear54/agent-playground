@@ -84,7 +84,7 @@ pdf-extractor --help`}</Pre>
       <table className="data-table">
         <thead><tr><th>Option</th><th>Default</th><th>Description</th></tr></thead>
         <tbody>
-          <tr><td><code>--output</code></td><td>stdout</td><td>Write result to file</td></tr>
+          <tr><td><code>--output</code></td><td>None</td><td>Output format: markdown (saves as .md) or html (saves as .html)</td></tr>
           <tr><td><code>--pretty</code></td><td>False</td><td>Format JSON with indentation</td></tr>
           <tr><td><code>--async</code></td><td>False</td><td>Use async extraction pipeline</td></tr>
         </tbody>
@@ -173,6 +173,38 @@ pdf-extractor ./docs/*.pdf \
   --async \
   --max-workers 4 \
   --pretty`}</Pre>
+
+      <h3>Output Format Conversion</h3>
+      <p>
+        The <code>--output</code> flag converts extraction results to different formats:
+      </p>
+      <Pre>{`# Convert to Markdown (saves as document.md)
+pdf-extractor ./docs/report.pdf --mode summary --output markdown
+
+# Convert to HTML (saves as document.html)
+pdf-extractor ./docs/report.pdf --mode full_text --output html
+
+# Batch conversion - all successful results combined and converted
+pdf-extractor ./docs/*.pdf --mode summary --output markdown
+
+# With async for faster conversion
+pdf-extractor ./docs/*.pdf --mode summary --output html --async --pretty`}</Pre>
+
+      <h4>Available Formats</h4>
+      <table className="data-table">
+        <thead><tr><th>Format</th><th>File Extension</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><code>markdown</code></td><td>.md</td><td>Markdown with headings, lists, tables, code blocks</td></tr>
+          <tr><td><code>html</code></td><td>.html</td><td>Semantic HTML with proper tags</td></tr>
+        </tbody>
+      </table>
+
+      <div className="info-box tip">
+        <div className="info-box-title">💡 Conversion vs Extraction</div>
+        <p>
+          The <code>--output</code> flag is a <strong>post-processing step</strong> that converts already-extracted content. For direct Markdown extraction from PDFs, use <code>--mode markdown</code> instead.
+        </p>
+      </div>
 
       <h3>Batch Processing</h3>
       <Pre>{`# Process multiple PDFs with 2 workers
@@ -309,6 +341,17 @@ exit_code = main([
       ],
       correctIndex: 1,
       explanation: 'The prompt mode requires the --prompt option to provide custom extraction instructions to the LLM.',
+    },
+    {
+      question: 'What does the --output flag do?',
+      options: [
+        'Writes raw JSON to stdout',
+        'Converts extraction results to markdown or HTML format',
+        'Sets the PDF output format',
+        'Enables async processing',
+      ],
+      correctIndex: 1,
+      explanation: 'The --output flag converts already-extracted content to the specified format (markdown or html), saving to a file named after the PDF.',
     },
   ],
 };

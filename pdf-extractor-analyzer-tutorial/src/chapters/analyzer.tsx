@@ -180,6 +180,80 @@ raise AnalysisError("All models failed")`}</Pre>
         <li><strong>Brace extraction</strong> - Find <code>{" {"}</code> and <code>{"}"}</code> boundaries</li>
       </ol>
 
+      <h2>Format Conversion</h2>
+      <p>
+        The analyzer provides methods for converting extracted content to different formats using the LLM:
+      </p>
+
+      <h3>convert_to_markdown()</h3>
+      <p>
+        Converts text content to Markdown format with proper formatting:
+      </p>
+      <Pre>{`def convert_to_markdown(self, content: str) -> str:
+    """Convert content to Markdown format using the LLM.
+    
+    Args:
+        content: The text content to convert to Markdown
+        
+    Returns:
+        Markdown-formatted string
+    """
+    # Uses LLM with detailed prompt for proper Markdown conversion
+    # Includes headings, bold, lists, code blocks, tables
+    result = self._run_with_retries(
+        prompt="Convert the following text content to Markdown format...",
+        image_bytes=None,
+    )
+    return result.strip()`}</Pre>
+
+      <h4>Markdown Features</h4>
+      <ul>
+        <li><code>#</code> and <code>##</code> for headings</li>
+        <li><code>**bold**</code> for emphasis</li>
+        <li>Bullet points (<code>-</code>) and numbered lists</li>
+        <li>Code blocks (<code>```</code>) for technical content</li>
+        <li>Markdown tables for tabular data</li>
+        <li>Document structure and hierarchy preserved</li>
+      </ul>
+
+      <h3>convert_to_html()</h3>
+      <p>
+        Converts text content to semantic HTML:
+      </p>
+      <Pre>{`def convert_to_html(self, content: str) -> str:
+    """Convert content to HTML format using the LLM.
+    
+    Args:
+        content: The text content to convert to HTML
+        
+    Returns:
+        HTML-formatted string
+    """
+    # Uses LLM with detailed prompt for semantic HTML conversion
+    # Includes h1, h2, p, ul, ol, li, table, strong, code, pre
+    result = self._run_with_retries(
+        prompt="Convert the following text content to HTML format...",
+        image_bytes=None,
+    )
+    return result.strip()`}</Pre>
+
+      <h4>HTML Features</h4>
+      <ul>
+        <li>Semantic tags: <code>&lt;h1&gt;</code>, <code>&lt;h2&gt;</code>, <code>&lt;p&gt;</code></li>
+        <li>Lists: <code>&lt;ul&gt;</code>, <code>&lt;ol&gt;</code>, <code>&lt;li&gt;</code></li>
+        <li>Emphasis: <code>&lt;strong&gt;</code></li>
+        <li>Code: <code>&lt;code&gt;</code>, <code>&lt;pre&gt;&lt;code&gt;</code></li>
+        <li>Tables with <code>&lt;thead&gt;</code> and <code>&lt;tbody&gt;</code></li>
+        <li>Structured document hierarchy preserved</li>
+      </ul>
+
+      <div className="info-box tip">
+        <div className="info-box-title">💡 Conversion vs Extraction Modes</div>
+        <p>
+          <code>convert_to_markdown()</code> and <code>convert_to_html()</code> are <strong>post-processing methods</strong> that convert already-extracted text content. Use the <code>markdown</code> extraction mode if you want the LLM to directly extract content as Markdown from the PDF.
+        </p>
+      </div>
+
       <h2>Image Validation</h2>
       <p>
         Before API calls, images are validated:
@@ -257,6 +331,17 @@ self._logger.info("Starting page analysis", extra={
       ],
       correctIndex: 1,
       explanation: 'When using PROMPT extraction mode, a ValueError is raised if the custom_prompt parameter is not provided.',
+    },
+    {
+      question: 'What is the difference between convert_to_markdown() and the markdown extraction mode?',
+      options: [
+        'They are identical',
+        'convert_to_markdown() is a post-processing step, markdown mode extracts directly from PDF',
+        'markdown mode is faster',
+        'convert_to_markdown() requires Pydantic schema',
+      ],
+      correctIndex: 1,
+      explanation: 'convert_to_markdown() is a post-processing method that converts already-extracted text content, while markdown extraction mode instructs the LLM to directly extract content as Markdown from the PDF image.',
     },
   ],
 };

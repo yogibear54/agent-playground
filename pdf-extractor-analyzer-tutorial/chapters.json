@@ -1,0 +1,86 @@
+{
+  "tutorialId": "pdf-extractor-analyzer-tutorial",
+  "sourceLocation": "/home/yogibear54/Projects/lotus-creations.com/_PROJECTS/agent-playground/pdf-extractor-analyzer/",
+  "basedOnCommit": "28d4d692",
+  "chapters": [
+    {
+      "id": "architecture",
+      "title": "Architecture Overview",
+      "file": "src/chapters/architecture.tsx",
+      "order": 1,
+      "sourceFiles": []
+    },
+    {
+      "id": "modules",
+      "title": "Key Modules Deep Dive",
+      "file": "src/chapters/modules.tsx",
+      "order": 2,
+      "sourceFiles": []
+    },
+    {
+      "id": "config",
+      "title": "Configuration System",
+      "file": "src/chapters/config.tsx",
+      "order": 3,
+      "sourceFiles": ["src/pdf_extractor_analyzer/config.py"]
+    },
+    {
+      "id": "converter",
+      "title": "PDF Converter Module",
+      "file": "src/chapters/converter.tsx",
+      "order": 4,
+      "sourceFiles": ["src/pdf_extractor_analyzer/converter.py"]
+    },
+    {
+      "id": "cache",
+      "title": "Cache Management",
+      "file": "src/chapters/cache.tsx",
+      "order": 5,
+      "sourceFiles": ["src/pdf_extractor_analyzer/cache.py"]
+    },
+    {
+      "id": "analyzer",
+      "title": "Vision Analyzer Module",
+      "file": "src/chapters/analyzer.tsx",
+      "order": 6,
+      "sourceFiles": ["src/pdf_extractor_analyzer/analyzer.py"]
+    },
+    {
+      "id": "pipeline",
+      "title": "Pipeline Orchestration",
+      "file": "src/chapters/pipeline.tsx",
+      "order": 7,
+      "sourceFiles": ["src/pdf_extractor_analyzer/pipeline.py"]
+    },
+    {
+      "id": "schemas",
+      "title": "Data Schemas",
+      "file": "src/chapters/schemas.tsx",
+      "order": 8,
+      "sourceFiles": ["src/pdf_extractor_analyzer/schemas.py"]
+    },
+    {
+      "id": "exceptions",
+      "title": "Exception Handling",
+      "file": "src/chapters/exceptions.tsx",
+      "order": 9,
+      "sourceFiles": ["src/pdf_extractor_analyzer/exceptions.py"]
+    },
+    {
+      "id": "providers",
+      "title": "Provider Adapters",
+      "file": "src/chapters/providers.tsx",
+      "order": 10,
+      "sourceFiles": ["src/pdf_extractor_analyzer/adapters/llm/replicate_adapter.py", "src/pdf_extractor_analyzer/adapters/llm/openrouter_adapter.py"]
+    },
+    {
+      "id": "cli",
+      "title": "Command-Line Interface",
+      "file": "src/chapters/cli.tsx",
+      "order": 11,
+      "sourceFiles": ["src/pdf_extractor_analyzer/cli.py"]
+    }
+  ],
+  "createdAt": "2026-04-03",
+  "lastUpdated": "2026-04-03"
+}

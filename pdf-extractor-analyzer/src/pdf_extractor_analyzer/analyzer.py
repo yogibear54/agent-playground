@@ -605,6 +605,104 @@ class VisionAnalyzer:
             f"Text preview: {preview!r}"
         )
 
+    def convert_to_markdown(self, content: str) -> str:
+        """Convert content to Markdown format using the LLM.
+
+        Args:
+            content: The text content to convert to Markdown
+
+        Returns:
+            Markdown-formatted string
+        """
+        cid = str(uuid.uuid4())[:8]
+        extra = {
+            "correlation_id": cid,
+            "operation": "convert_to_markdown",
+            "provider": self.provider.provider_name,
+            "model": self.config.get_primary_model(),
+        }
+
+        self._logger.info("Converting content to Markdown", extra=extra)
+        start_time = time.time()
+
+        prompt = (
+            "Convert the following text content to Markdown format.\n"
+            "Use proper Markdown syntax:\n"
+            "- Use # for headings, ## for subheadings\n"
+            "- Use **bold** for emphasis where appropriate\n"
+            "- Use bullet points (-) or numbered lists for items\n"
+            "- Use code blocks (```) for any code or technical content\n"
+            "- Preserve the document structure and hierarchy\n"
+            "- Extract tables as Markdown tables where possible\n"
+            "- Include all relevant content, do not summarize or omit details\n\n"
+            f"Content to convert:\n{content}"
+        )
+
+        try:
+            result = self._run_with_retries(
+                prompt=prompt,
+                image_bytes=None,
+                correlation_id=cid,
+            )
+            duration_ms = (time.time() - start_time) * 1000
+            self._logger.info(
+                "Markdown conversion completed",
+                extra={**extra, "duration_ms": round(duration_ms, 2)},
+            )
+            return result.strip()
+        except AnalysisError as err:
+            self._logger.error("Markdown conversion failed: %s", err, extra=extra)
+            raise
+
+    def convert_to_html(self, content: str) -> str:
+        """Convert content to HTML format using the LLM.
+
+        Args:
+            content: The text content to convert to HTML
+
+        Returns:
+            HTML-formatted string
+        """
+        cid = str(uuid.uuid4())[:8]
+        extra = {
+            "correlation_id": cid,
+            "operation": "convert_to_html",
+            "provider": self.provider.provider_name,
+            "model": self.config.get_primary_model(),
+        }
+
+        self._logger.info("Converting content to HTML", extra=extra)
+        start_time = time.time()
+
+        prompt = (
+            "Convert the following text content to HTML format.\n"
+            "- Use semantic HTML tags (<h1>, <h2>, <p>, <ul>, <ol>, <li>, <table>, etc.)\n"
+            "- Use <strong> for emphasis\n"
+            "- Use <code> for inline code and <pre><code> for code blocks\n"
+            "- Convert lists appropriately (<ul> for bullet points, <ol> for numbered lists)\n"
+            "- Convert tables to proper HTML table structure with <thead> and <tbody>\n"
+            "- Preserve document structure and hierarchy\n"
+            "- Include all relevant content, do not summarize or omit details\n"
+            "- Return ONLY the HTML, no markdown or explanations\n\n"
+            f"Content to convert:\n{content}"
+        )
+
+        try:
+            result = self._run_with_retries(
+                prompt=prompt,
+                image_bytes=None,
+                correlation_id=cid,
+            )
+            duration_ms = (time.time() - start_time) * 1000
+            self._logger.info(
+                "HTML conversion completed",
+                extra={**extra, "duration_ms": round(duration_ms, 2)},
+            )
+            return result.strip()
+        except AnalysisError as err:
+            self._logger.error("HTML conversion failed: %s", err, extra=extra)
+            raise
+
 
 class ReplicateVisionAnalyzer(VisionAnalyzer):
     """Deprecated compatibility wrapper for the old analyzer name."""

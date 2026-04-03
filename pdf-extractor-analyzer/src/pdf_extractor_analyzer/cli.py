@@ -7,6 +7,7 @@ import json
 import sys
 import warnings
 from pathlib import Path
+from typing import Literal
 
 from pydantic import BaseModel
 
@@ -18,6 +19,8 @@ from .config import (
 )
 from .pipeline import PDFExtractor
 from .schemas import ExtractionMode
+
+OutputFormat = Literal["markdown", "html"]
 
 
 def _schema_from_import(path: str) -> type[BaseModel]:
@@ -131,7 +134,16 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Stop batch processing on first error",
     )
-    parser.add_argument("--output", help="Output file path for result JSON")
+    parser.add_argument(
+        "--output",
+        nargs="?",
+        const="markdown",
+        default=None,
+        choices=["markdown", "html"],
+        help="Output format: 'markdown' (saves as .md) or 'html' (saves as .html). "
+        "Content will be converted to the specified format using the LLM. "
+        "Defaults to 'markdown' when specified without a value.",
+    )
     parser.add_argument(
         "--pretty",
         action="store_true",
@@ -258,10 +270,60 @@ def main(argv: list[str] | None = None) -> int:
                 )
                 payload = [item.model_dump() for item in results]
 
-        text = json.dumps(payload, indent=2 if args.pretty else None)
+        # Handle output format conversion
         if args.output:
-            Path(args.output).write_text(text, encoding="utf-8")
+            output_format: OutputFormat | None = args.output if args.output in ("markdown", "html") else None
+
+            if output_format:
+                # Extract content strings from results
+                contents: list[str] = []
+
+                if len(args.pdf_paths) == 1:
+                    # Single PDF: get content from result
+                    if hasattr(result, 'content') and isinstance(result.content, str):
+                        contents.append(result.content)
+                    elif isinstance(payload.get("content"), str):
+                        contents.append(payload["content"])
+                else:
+                    # Batch: extract content from all successful results
+                    for item in results:
+                        if hasattr(item, 'result') and item.result:
+                            if isinstance(item.result.content, str):
+                                contents.append(item.result.content)
+
+                if contents:
+                    # Join all content with page separators
+                    combined_content = "\n\n---\n\n".join(contents)
+
+                    # Convert to desired format
+                    if output_format == "markdown":
+                        converted = extractor.analyzer.convert_to_markdown(combined_content)
+                        ext = ".md"
+                    else:  # html
+                        converted = extractor.analyzer.convert_to_html(combined_content)
+                        ext = ".html"
+
+                    # Save to file named after first PDF
+                    pdf_path = Path(args.pdf_paths[0])
+                    output_path = pdf_path.with_suffix(ext)
+                    output_path.write_text(converted, encoding="utf-8")
+                    sys.stderr.write(f"Saved {output_format} output to: {output_path}\n")
+                else:
+                    sys.stderr.write(
+                        f"Warning: No string content found to convert to {output_format}\n"
+                    )
+                    # Fall back to JSON output
+                    text = json.dumps(payload, indent=2 if args.pretty else None)
+                    sys.stdout.write(text)
+                    if not text.endswith("\n"):
+                        sys.stdout.write("\n")
+            else:
+                # Original behavior: save JSON to specified path
+                text = json.dumps(payload, indent=2 if args.pretty else None)
+                Path(args.output).write_text(text, encoding="utf-8")
         else:
+            # Print JSON to stdout
+            text = json.dumps(payload, indent=2 if args.pretty else None)
             sys.stdout.write(text)
             if not text.endswith("\n"):
                 sys.stdout.write("\n")

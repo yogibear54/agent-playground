@@ -338,6 +338,24 @@ print(result.content)
 - Specify the structure if you need a particular output format
 - Include examples if the extraction is complex
 
+### Output Format Conversion
+
+The `--output` flag can be used to convert extraction results to different formats:
+
+```bash
+# Convert to Markdown (saves as document.md)
+pdf-extractor ./docs/report.pdf --mode summary --output markdown
+
+# Convert to HTML (saves as document.html)
+pdf-extractor ./docs/report.pdf --mode full_text --output html
+```
+
+Available formats:
+- `markdown`: Converts content to Markdown format with proper headers, lists, tables, and emphasis
+- `html`: Converts content to semantic HTML with proper tags (<h1>, <p>, <ul>, <table>, etc.)
+
+The conversion uses the LLM to intelligently transform your extracted content into the desired format. For batch processing, all successful results are combined before conversion.
+
 ## Cached Output Files
 
 When using `cache_mode=persistent`, extraction results are saved to the cache directory:

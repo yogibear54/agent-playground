@@ -1,0 +1,84 @@
+{
+  "version": 1,
+  "updatedAt": "2026-04-05T08:53:32Z",
+  "config": {
+    "tutorialDir": "simple-pi-mono-agent-ts-tutorial",
+    "sourceDir": "simple-pi-mono-agent-ts",
+    "projectName": "simple-pi-mono-agent-ts",
+    "audience": "Developers familiar with JavaScript but new to TypeScript",
+    "goals": [
+      "Navigate the codebase",
+      "Understand architecture patterns",
+      "Make small changes",
+      "Debug common issues"
+    ],
+    "scope": "detailed",
+    "includeQuizzes": true,
+    "includeDiagrams": true,
+    "techStack": "react"
+  },
+  "chapters": [
+    {
+      "id": "architecture-overview",
+      "title": "Architecture Overview",
+      "sourceFiles": [
+        "src/index.ts",
+        "dist/index.js",
+        "dist/agent/*.js",
+        "dist/tools/*.js",
+        "dist/lib/*.js",
+        "dist/config/*.js",
+        "dist/prompts/*.js"
+      ],
+      "chapterFile": "src/chapters/ArchitectureOverviewChapter.tsx"
+    },
+    {
+      "id": "key-modules",
+      "title": "Key Modules",
+      "sourceFiles": [
+        "src/index.ts",
+        "dist/agent/createAgent.js",
+        "dist/agent/events.js",
+        "dist/tools/sumNumbers.js",
+        "dist/lib/messages.js",
+        "dist/prompts/system.js"
+      ],
+      "chapterFile": "src/chapters/KeyModulesChapter.tsx"
+    },
+    {
+      "id": "data-flow",
+      "title": "Data Flow",
+      "sourceFiles": [
+        "src/index.ts",
+        "dist/lib/messages.js",
+        "dist/tools/sumNumbers.js",
+        "dist/agent/events.js"
+      ],
+      "chapterFile": "src/chapters/DataFlowChapter.tsx"
+    },
+    {
+      "id": "typescript-patterns",
+      "title": "TypeScript Patterns",
+      "sourceFiles": [
+        "src/index.ts",
+        "tsconfig.json",
+        "package.json"
+      ],
+      "chapterFile": "src/chapters/TypeScriptPatternsChapter.tsx"
+    },
+    {
+      "id": "configuration-and-entry-points",
+      "title": "Configuration & Entry Points",
+      "sourceFiles": [
+        "package.json",
+        "tsconfig.json",
+        ".env.example",
+        "README.md",
+        "src/index.ts",
+        "dist/config/env.js",
+        "dist/index.js"
+      ],
+      "chapterFile": "src/chapters/ConfigAndEntrypointsChapter.tsx"
+    }
+  ]
+}
